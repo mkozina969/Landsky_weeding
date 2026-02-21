@@ -306,6 +306,18 @@ def home():
         return FileResponse(path)
     return HTMLResponse("<h1>Frontend not found</h1><p>Create frontend/index.html</p>", status_code=404)
 
+from fastapi.responses import FileResponse
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_ui():
+    path = os.path.join("frontend", "admin.html")
+    if os.path.isfile(path):
+        return FileResponse(path)
+    return HTMLResponse("<h2>admin.html not found</h2>", status_code=404)
+
+@app.get("/admin/", response_class=HTMLResponse)
+def admin_ui_slash():
+    return admin_ui()
 
 @app.get("/health")
 def health():
