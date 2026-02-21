@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+    <meta charset="UTF-8">
+    <title>Landsky Wedding Registration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        form { max-width: 400px; margin: 0 auto; }
+        label { display: block; margin-top: 1rem; }
+        input, button { width: 100%; padding: 0.5rem; }
+        #message { margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <h1>Prijava za vjenčanje</h1>
+    <form id="registrationForm">
+        <label>Ime:
+            <input type="text" id="first_name" required>
+        </label>
+        <label>Prezime:
+            <input type="text" id="last_name" required>
+        </label>
+        <label>Datum vjenčanja:
+            <input type="date" id="wedding_date" required>
+        </label>
+        <label>Lokacija / Sala:
+            <input type="text" id="venue">
+        </label>
+        <label>Broj gostiju:
+            <input type="number" id="guest_count">
+        </label>
+        <label>Email:
+            <input type="email" id="email" required>
+        </label>
+        <label>Telefon:
+            <input type="text" id="phone">
+        </label>
+        <button type="submit">Pošalji upit</button>
+    </form>
+    <div id="message"></div>
+    <script>
+        document.getElementById('registrationForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const data = {
+                first_name: document.getElementById('first_name').value,
+                last_name: document.getElementById('last_name').value,
+                wedding_date: document.getElementById('wedding_date').value,
+                venue: document.getElementById('venue').value || null,
+                guest_count: document.getElementById('guest_count').value ? parseInt(document.getElementById('guest_count').value) : null,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value || null,
+            };
+            try {
+                const response = await fetch('http://localhost:8000/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    document.getElementById('message').innerText = result.message || 'Upit je uspješno poslan.';
+                    document.getElementById('registrationForm').reset();
+                } else {
+                    document.getElementById('message').innerText = 'Došlo je do pogreške: ' + JSON.stringify(result);
+                }
+            } catch (error) {
+                document.getElementById('message').innerText = 'Greška pri slanju: ' + error;
+            }
+        });
+    </script>
+</body>
+</html>
