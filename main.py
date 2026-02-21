@@ -61,6 +61,7 @@ import smtplib
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
+from fastapi.staticfiles import StaticFiles
 
 from sqlalchemy import Boolean, Column, Date, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -349,6 +350,7 @@ def schedule_reminder(event: Event) -> None:
 # FastAPI application and endpoints
 
 app = FastAPI(title="Landsky Wedding App")
+  app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # Enable CORS for all origins (adjust as needed).  This allows browser
 # frontends hosted on different domains to interact with the API.
