@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Landsky Catering – Upit za vjenčanje</title>
+  <title>Landsky Catering – Landsky Cocktail Catering</title>
   <style>
     :root{
       --bg:#FFFFFF;
@@ -145,9 +145,9 @@
         <!-- Logo: stavi frontend/logo.png -->
         <img class="logo" src="logo.png" alt="Landsky Catering logo" />
         <div>
-          <h1>Upit za vjenčanje</h1>
+          <h1>Landsky Cocktail Catering</h1>
           <p class="subtitle">
-            Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit. U test fazi potvrde stižu na internu adresu.
+            Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit. Na vašu e-mail adresu će stići naša ponuda i opcije koje nudimo.
           </p>
         </div>
       </div>
