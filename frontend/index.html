@@ -1,72 +1,106 @@
 <!DOCTYPE html>
 <html lang="hr">
 <head>
-    <meta charset="UTF-8">
-    <title>Landsky Wedding Registration</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; }
-        form { max-width: 400px; margin: 0 auto; }
-        label { display: block; margin-top: 1rem; }
-        input, button { width: 100%; padding: 0.5rem; }
-        #message { margin-top: 1rem; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Landsky Wedding</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    form { max-width: 520px; margin: 0 auto; }
+    label { display:block; margin-top: 1rem; }
+    input, textarea, button { width:100%; padding: 0.6rem; font-size: 14px; }
+    textarea { min-height: 120px; }
+    #message { margin-top: 1rem; }
+    .muted { color:#666; font-size: 13px; }
+  </style>
 </head>
 <body>
-    <h1>Prijava za vjenčanje</h1>
-    <form id="registrationForm">
-        <label>Ime:
-            <input type="text" id="first_name" required>
-        </label>
-        <label>Prezime:
-            <input type="text" id="last_name" required>
-        </label>
-        <label>Datum vjenčanja:
-            <input type="date" id="wedding_date" required>
-        </label>
-        <label>Lokacija / Sala:
-            <input type="text" id="venue">
-        </label>
-        <label>Broj gostiju:
-            <input type="number" id="guest_count">
-        </label>
-        <label>Email:
-            <input type="email" id="email" required>
-        </label>
-        <label>Telefon:
-            <input type="text" id="phone">
-        </label>
-        <button type="submit">Pošalji upit</button>
-    </form>
-    <div id="message"></div>
-    <script>
-        document.getElementById('registrationForm').addEventListener('submit', async function(event) {
-            event.preventDefault();
-            const data = {
-                first_name: document.getElementById('first_name').value,
-                last_name: document.getElementById('last_name').value,
-                wedding_date: document.getElementById('wedding_date').value,
-                venue: document.getElementById('venue').value || null,
-                guest_count: document.getElementById('guest_count').value ? parseInt(document.getElementById('guest_count').value) : null,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value || null,
-            };
-            try {
-                const response = await fetch('/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    document.getElementById('message').innerText = result.message || 'Upit je uspješno poslan.';
-                    document.getElementById('registrationForm').reset();
-                } else {
-                    document.getElementById('message').innerText = 'Došlo je do pogreške: ' + JSON.stringify(result);
-                }
-            } catch (error) {
-                document.getElementById('message').innerText = 'Greška pri slanju: ' + error;
-            }
+  <h1>Prijava / Upit za vjenčanje</h1>
+  <p class="muted">Ispunite podatke i pošaljite upit.</p>
+
+  <form id="registrationForm">
+    <label>Ime:
+      <input type="text" id="first_name" required>
+    </label>
+
+    <label>Prezime:
+      <input type="text" id="last_name" required>
+    </label>
+
+    <label>Datum vjenčanja:
+      <input type="date" id="wedding_date" required>
+    </label>
+
+    <label>Lokacija / Sala:
+      <input type="text" id="venue" required>
+    </label>
+
+    <label>Broj gostiju:
+      <input type="number" id="guest_count" required>
+    </label>
+
+    <label>E-mail:
+      <input type="email" id="email" required>
+    </label>
+
+    <label>Telefon:
+      <input type="text" id="phone" required>
+    </label>
+
+    <label>Napomena / Pitanja (opcionalno):
+      <textarea id="message" placeholder="Npr. zanimaju nas veganske opcije, bezalkoholni bar, cijena po osobi..."></textarea>
+    </label>
+
+    <button type="submit">Pošalji upit</button>
+  </form>
+
+  <div id="status" style="margin-top:14px;"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+
+    document.getElementById('registrationForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      statusEl.innerText = "Šaljem upit...";
+
+      const data = {
+        first_name: document.getElementById('first_name').value,
+        last_name: document.getElementById('last_name').value,
+        wedding_date: document.getElementById('wedding_date').value,
+        venue: document.getElementById('venue').value,
+        guest_count: parseInt(document.getElementById('guest_count').value),
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        message: document.getElementById('message').value || null
+      };
+
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
         });
-    </script>
+
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+        if (!res.ok) {
+          statusEl.innerText = "Greška: " + JSON.stringify(json);
+          return;
+        }
+
+        let out = json.message || "Upit je poslan.";
+        if (json.preview_url) {
+          out += "\n\nTEST preview: " + json.preview_url;
+        }
+
+        statusEl.innerText = out;
+        document.getElementById('registrationForm').reset();
+      } catch (e) {
+        statusEl.innerText = "Greška pri slanju: " + e;
+      }
+    });
+  </script>
 </body>
 </html>
