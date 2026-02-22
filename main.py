@@ -29,12 +29,13 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # "resend" or "smtp"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
+# For Resend testing use: onboarding@resend.dev (works without domain verification, but only sends to your email)
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
-# TEST MODE: all offer emails go here (your email)
+# TEST MODE: all outgoing "offer" emails go here (your email)
 CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", "mkozina31@gmail.com")
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
@@ -69,7 +70,7 @@ class Event(Base):
     email = Column(String)
     phone = Column(String)
 
-    status = Column(String)     # pending / accepted / declined
+    status = Column(String)  # pending / accepted / declined
     accepted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -98,6 +99,7 @@ class RegistrationRequest(BaseModel):
 
 app = FastAPI(title="Landsky Wedding App")
 
+# Static frontend (index.html, admin.html, etc.)
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # ======================
@@ -289,11 +291,12 @@ def admin_list_events(
 
     items = query.order_by(Event.id.desc()).all()
 
-    # simple search filter in python (ok for MVP)
+    # Simple search (MVP)
     if q:
         qq = q.lower()
         items = [
-            e for e in items
+            e
+            for e in items
             if (e.first_name and qq in e.first_name.lower())
             or (e.last_name and qq in e.last_name.lower())
             or (e.email and qq in e.email.lower())
@@ -349,5 +352,24 @@ def admin_decline_event(
     e.accepted = False
     e.status = "declined"
     db.commit()
+
+    return {"ok": True}
+
+
+@app.post("/admin/api/events/{event_id}/resend")
+def admin_resend_offer(
+    event_id: int,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(404, "Not found")
+
+    try:
+        send_offer_email(e)
+    except Exception as ex:
+        print("EMAIL SEND FAILED:", repr(ex))
+        raise HTTPException(500, f"Email failed: {repr(ex)}")
 
     return {"ok": True}
