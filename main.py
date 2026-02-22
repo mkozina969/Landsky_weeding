@@ -17,6 +17,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
 load_dotenv()
 
 # ======================
@@ -46,6 +48,10 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 
 # TEST MODE: when "1" we send the offer ONLY to CATERING_TEAM_EMAIL (you)
 TEST_MODE = os.getenv("TEST_MODE", "1") == "1"
+
+# Reminder timings
+REMINDER_DAY_1 = int(os.getenv("REMINDER_DAY_1", "3"))  # first reminder after N days
+REMINDER_DAY_2 = int(os.getenv("REMINDER_DAY_2", "7"))  # second reminder after N days
 
 # ======================
 # DB
@@ -77,11 +83,15 @@ class Event(Base):
     # note/questions from couple
     message = Column(String, default="")
 
-    # NEW: selected package when accepting offer
+    # selected package when accepting offer
     selected_package = Column(String, default="")
 
     status = Column(String)  # pending / accepted / declined
     accepted = Column(Boolean, default=False)
+
+    # reminder tracking
+    last_email_sent_at = Column(DateTime, nullable=True)
+    reminder_count = Column(Integer, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -91,32 +101,40 @@ Base.metadata.create_all(bind=engine)
 # --- MVP migrations ---
 try:
     with engine.begin() as conn:
-        # message
         if "sqlite" in DATABASE_URL:
             cols = conn.execute(text("PRAGMA table_info(events);")).fetchall()
             names = [c[1] for c in cols]
+
             if "message" not in names:
                 conn.execute(text("ALTER TABLE events ADD COLUMN message TEXT DEFAULT ''"))
             if "selected_package" not in names:
                 conn.execute(text("ALTER TABLE events ADD COLUMN selected_package TEXT DEFAULT ''"))
-        else:
-            res = conn.execute(
-                text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='events' AND column_name='message';"
-                )
-            ).fetchone()
-            if not res:
-                conn.execute(text("ALTER TABLE events ADD COLUMN message VARCHAR DEFAULT ''"))
+            if "last_email_sent_at" not in names:
+                conn.execute(text("ALTER TABLE events ADD COLUMN last_email_sent_at DATETIME"))
+            if "reminder_count" not in names:
+                conn.execute(text("ALTER TABLE events ADD COLUMN reminder_count INTEGER DEFAULT 0"))
 
-            res2 = conn.execute(
-                text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='events' AND column_name='selected_package';"
-                )
-            ).fetchone()
-            if not res2:
+        else:
+            # Postgres
+            def col_exists(col: str) -> bool:
+                r = conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name='events' AND column_name=:c;"
+                    ),
+                    {"c": col},
+                ).fetchone()
+                return bool(r)
+
+            if not col_exists("message"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN message VARCHAR DEFAULT ''"))
+            if not col_exists("selected_package"):
                 conn.execute(text("ALTER TABLE events ADD COLUMN selected_package VARCHAR DEFAULT ''"))
+            if not col_exists("last_email_sent_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN last_email_sent_at TIMESTAMP NULL"))
+            if not col_exists("reminder_count"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN reminder_count INTEGER DEFAULT 0"))
+
 except Exception as ex:
     print("MIGRATIONS skipped/failed:", repr(ex))
 
@@ -347,6 +365,7 @@ def internal_email_body(e: Event) -> str:
         <li><b>Sala:</b> {html.escape(e.venue)}</li>
         <li><b>Gosti:</b> {e.guest_count}</li>
         <li><b>Status:</b> {html.escape(e.status)}</li>
+        <li><b>Odabrani paket:</b> {html.escape(e.selected_package or "—")}</li>
       </ul>
 
       <p><b>Napomena / Pitanja:</b><br>{html.escape((e.message or "").strip() or "(nema)").replace("\\n", "<br>")}</p>
@@ -360,7 +379,7 @@ def internal_email_body(e: Event) -> str:
     """
 
 
-def send_offer_flow(e: Event):
+def send_offer_flow(e: Event, db: Session | None = None):
     """
     Always:
       - send internal email to you
@@ -386,6 +405,88 @@ def send_offer_flow(e: Event):
     else:
         send_email(e.email, "Ponuda za vaše vjenčanje", offer_html)
 
+    # mark last email timestamp + reset reminders
+    if db is not None:
+        e.last_email_sent_at = datetime.utcnow()
+        e.reminder_count = 0
+        db.commit()
+
+
+def reminder_email_body(e: Event) -> str:
+    accept_link = f"{BASE_URL}/accept?token={e.token}"
+    decline_link = f"{BASE_URL}/decline?token={e.token}"
+
+    return f"""
+    <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
+      <h2>Podsjetnik — Landsky Catering ponuda</h2>
+      <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+      <p>Samo kratki podsjetnik vezano za našu ponudu za datum <b>{html.escape(e.wedding_date)}</b> ({html.escape(e.venue)}).</p>
+      <p>Ako imate pitanja, slobodno odgovorite na ovaj email.</p>
+
+      <div style="margin:14px 0; padding:12px; border:1px solid #eee; border-radius:10px;">
+        <div><b>Status:</b> {html.escape(e.status or "pending")}</div>
+        <div><b>Broj gostiju:</b> {e.guest_count}</div>
+      </div>
+
+      <p style="margin:0;">
+        ✅ <a href="{accept_link}">Prihvaćam ponudu</a><br>
+        ❌ <a href="{decline_link}">Odbijam ponudu</a>
+      </p>
+
+      <p style="margin-top:18px;">Srdačan pozdrav,<br><b>Landsky Catering</b></p>
+    </div>
+    """
+
+
+def reminder_job():
+    """
+    Runs periodically.
+    Sends reminder 1 after REMINDER_DAY_1 days,
+    reminder 2 after REMINDER_DAY_2 days,
+    only for pending offers (not accepted/declined).
+    """
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+
+        # only pending
+        items = db.query(Event).filter(Event.status == "pending").all()
+
+        for e in items:
+            if not e.last_email_sent_at:
+                continue
+
+            days = (now - e.last_email_sent_at).days
+
+            # who receives reminder?
+            recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+
+            if e.reminder_count == 0 and days >= REMINDER_DAY_1:
+                try:
+                    send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                    e.reminder_count = 1
+                    e.last_email_sent_at = now
+                    db.commit()
+                except Exception as ex:
+                    print("REMINDER SEND FAILED:", repr(ex))
+
+            elif e.reminder_count == 1 and days >= REMINDER_DAY_2:
+                try:
+                    send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                    e.reminder_count = 2
+                    e.last_email_sent_at = now
+                    db.commit()
+                except Exception as ex:
+                    print("REMINDER SEND FAILED:", repr(ex))
+
+    finally:
+        db.close()
+
+
+# Start scheduler (Render has WEB_CONCURRENCY=1 typically; this is ok for MVP)
+scheduler = BackgroundScheduler()
+scheduler.add_job(reminder_job, "interval", hours=1)
+scheduler.start()
 
 # ======================
 # PUBLIC ROUTES
@@ -423,6 +524,8 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
         status="pending",
         accepted=False,
         created_at=datetime.utcnow(),
+        last_email_sent_at=None,
+        reminder_count=0,
     )
 
     db.add(e)
@@ -430,7 +533,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     db.refresh(e)
 
     try:
-        send_offer_flow(e)
+        send_offer_flow(e, db=db)
     except Exception as ex:
         print("EMAIL SEND FAILED:", repr(ex))
 
@@ -454,7 +557,8 @@ def accept(
 
     # if no package selected -> show selection form
     if not package:
-        return HTMLResponse(f"""
+        return HTMLResponse(
+            f"""
         <div style="font-family:Arial; max-width:640px; margin:40px auto; padding:20px; border:1px solid #eee; border-radius:12px;">
           <h2>Odaberite paket prije potvrde</h2>
           <p><b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b> — {html.escape(e.wedding_date)} — {html.escape(e.venue)}</p>
@@ -482,7 +586,8 @@ def accept(
             </button>
           </form>
         </div>
-        """)
+        """
+        )
 
     # validate + save
     key = package.strip().lower()
@@ -497,13 +602,15 @@ def accept(
     e.selected_package = allowed[key]
     db.commit()
 
-    return HTMLResponse(f"""
+    return HTMLResponse(
+        f"""
     <div style="font-family:Arial; max-width:640px; margin:40px auto; padding:20px; border:1px solid #eee; border-radius:12px;">
       <h1>Ponuda prihvaćena 🎉</h1>
       <p>Odabrani paket: <b>{html.escape(e.selected_package)}</b></p>
       <p>Hvala! Javit ćemo vam se s daljnjim detaljima.</p>
     </div>
-    """)
+    """
+    )
 
 
 @app.get("/decline", response_class=HTMLResponse)
@@ -571,6 +678,8 @@ def admin_list_events(
                 "message": e.message or "",
                 "status": e.status,
                 "selected_package": e.selected_package or "",
+                "reminder_count": e.reminder_count or 0,
+                "last_email_sent_at": e.last_email_sent_at.isoformat() if e.last_email_sent_at else None,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
             for e in items
@@ -625,7 +734,7 @@ def admin_resend_offer(
         raise HTTPException(404, "Not found")
 
     try:
-        send_offer_flow(e)
+        send_offer_flow(e, db=db)
     except Exception as ex:
         print("EMAIL SEND FAILED:", repr(ex))
         raise HTTPException(500, f"Email failed: {repr(ex)}")
