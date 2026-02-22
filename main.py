@@ -344,10 +344,12 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     db.commit()
     db.refresh(e)
 
+   try:
     send_offer_email(e)
+except Exception as ex:
+    print("EMAIL SEND FAILED:", repr(ex))
 
-    # Do NOT return token publicly (token is in email)
-    return {"message": "Vaš upit je zaprimljen. Ponuda će vam biti poslana na e-mail."}
+return {"message": "Vaš upit je zaprimljen. (Email je privremeno u test modu)"}
 
 
 @app.get("/accept", response_class=HTMLResponse)
