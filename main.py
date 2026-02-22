@@ -2,6 +2,7 @@ import os
 import uuid
 import smtplib
 import requests
+import html
 from datetime import datetime
 from email.mime.text import MIMEText
 
@@ -32,6 +33,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # "resend" or "smtp"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
+# Resend testing sender (works without domain verification, but only allows sending to your own email)
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
 # Internal inbox (you)
@@ -42,9 +44,8 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 
-# If you set this, it overrides who receives the "couple offer" email (useful later).
-# In Resend test mode it will still fail for non-owner emails, so we keep it optional.
-TEST_COUPLE_EMAIL = os.getenv("TEST_COUPLE_EMAIL")  # e.g. mkozina@intercars.eu
+# TEST MODE: when "1" we send the offer ONLY to CATERING_TEAM_EMAIL (you)
+TEST_MODE = os.getenv("TEST_MODE", "1") == "1"
 
 # ======================
 # DB
@@ -73,7 +74,7 @@ class Event(Base):
     email = Column(String)
     phone = Column(String)
 
-    # NEW: message/questions from couple
+    # NEW: note/questions from couple
     message = Column(String, default="")
 
     status = Column(String)  # pending / accepted / declined
@@ -117,7 +118,7 @@ class RegistrationRequest(BaseModel):
     guest_count: int
     email: EmailStr
     phone: str
-    message: str | None = None  # NEW
+    message: str | None = None
 
 
 # ======================
@@ -126,6 +127,7 @@ class RegistrationRequest(BaseModel):
 
 app = FastAPI(title="Landsky Wedding App")
 
+# Static frontend (/frontend/index.html, /frontend/admin.html, /frontend/logo.png, etc.)
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # ======================
@@ -201,77 +203,173 @@ def send_email(to_email: str, subject: str, body_html: str):
 
 
 def offer_email_body(e: Event) -> str:
+    """
+    This is the HTML offer email that couples receive.
+    We host logo + attachments on our own site and link them here.
+    """
+    logo_url = f"{BASE_URL}/frontend/logo.png"
+    cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
+    bar_img = f"{BASE_URL}/frontend/bar.jpeg"
+    cigare_img = f"{BASE_URL}/frontend/cigare.png"
+
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
 
-    msg_block = ""
-    if (e.message or "").strip():
-        msg_block = f"""
-        <p><b>Napomena / Pitanja mladenaca:</b><br>
-        {e.message}</p>
-        """
+    msg = (e.message or "").strip()
+    msg_html = html.escape(msg).replace("\n", "<br>") if msg else "(nema)"
 
     return f"""
-    <h2>Ponuda za vjenčanje</h2>
-    <p>Poštovani {e.first_name} {e.last_name},</p>
+    <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
+      <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
+        <div style="background:#0b0f14; padding:18px 18px 12px 18px;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <img src="{logo_url}" alt="Landsky Catering" style="width:68px; height:68px; object-fit:contain; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15); border-radius:14px; padding:10px;">
+            <div>
+              <div style="color:#fff; font-size:18px; font-weight:700;">Landsky Catering</div>
+              <div style="color:rgba(255,255,255,.7); font-size:12px;">Ponuda za vjenčanje</div>
+            </div>
+          </div>
+        </div>
 
-    <p>Zaprimili smo vaš upit:</p>
-    <ul>
-      <li><b>Datum:</b> {e.wedding_date}</li>
-      <li><b>Lokacija / sala:</b> {e.venue}</li>
-      <li><b>Broj gostiju:</b> {e.guest_count}</li>
-    </ul>
+        <div style="padding:18px;">
+          <p style="margin:0 0 10px 0;"><b>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</b></p>
+          <p style="margin:0 0 14px 0;">Zahvaljujemo na Vašem upitu. U nastavku dostavljamo informacije vezane za cocktail catering.</p>
 
-    {msg_block}
+          <div style="background:#fafafa; border:1px solid #eee; border-radius:12px; padding:12px 14px; margin:14px 0;">
+            <div style="font-weight:700; margin-bottom:6px;">Sažetak upita</div>
+            <div>📅 <b>Datum:</b> {html.escape(e.wedding_date)}</div>
+            <div>📍 <b>Lokacija / sala:</b> {html.escape(e.venue)}</div>
+            <div>👥 <b>Broj gostiju:</b> {e.guest_count}</div>
+            <div>✉️ <b>Email:</b> {html.escape(e.email)}</div>
+            <div>📞 <b>Telefon:</b> {html.escape(e.phone)}</div>
+            <div style="margin-top:8px;"><b>Napomena / pitanja:</b><br>{msg_html}</div>
+          </div>
 
-    <p>Molimo potvrdite ponudu:</p>
-    <a href="{accept_link}">Prihvaćam</a><br>
-    <a href="{decline_link}">Odbijam</a>
+          <p style="margin:0 0 10px 0;">
+            U ponudi su omiljeni klasici kao i pristup osmišljavanja koktela sukladno vašem događanju.
+          </p>
+
+          <div style="margin:12px 0;">
+            <div style="font-weight:700; margin-bottom:6px;">Ponuda uključuje</div>
+            <ul style="margin:0; padding-left:18px;">
+              <li>Profesionalnog barmena</li>
+              <li>Event menu s koktelima prilagođen temi eventa (po želji)</li>
+              <li>Staklene čaše + piće (alkoholno i bezalkoholno)</li>
+              <li>Premium led / konzumni led</li>
+              <li>Dekoracije</li>
+              <li>Šank</li>
+            </ul>
+          </div>
+
+          <div style="background:#fff7e6; border:1px solid #f3e3bf; border-radius:12px; padding:12px 14px; margin:14px 0;">
+            <div style="font-weight:700; margin-bottom:6px;">Cijene paketa</div>
+            <div>• <b>Klasični koktel paket:</b> 1.000 EUR + PDV (100 koktela) — svakih dodatnih 100: 500 EUR + PDV</div>
+            <div>• <b>Premium koktel paket:</b> 1.200 EUR + PDV (100 koktela) — svakih dodatnih 100: 600 EUR + PDV</div>
+            <div>• <b>Signature koktel paket:</b> 1.500 EUR + PDV (100 koktela) — svakih dodatnih 100: 800 EUR + PDV</div>
+            <div style="margin-top:8px; color:#6b5a2a;">* Preporučujemo 200 koktela.</div>
+            <div style="margin-top:10px;">
+              📎 Detalji paketa: <a href="{cocktails_pdf}">{cocktails_pdf}</a>
+            </div>
+          </div>
+
+          <div style="margin:14px 0;">
+            <div style="font-weight:700; margin-bottom:6px;">Premium cigare (opcionalno)</div>
+            <p style="margin:0 0 8px 0;">
+              Uz odabir cigara od nas dobivate humidor, rezač, upaljač i pepeljare.
+              Nudimo i <b>Cigar Connoisseur</b> uslugu (stručno vođenje, rezanje i paljenje) — <b>450 EUR + PDV</b> (3 sata).
+            </p>
+            📎 Popis cigara: <a href="{cigare_img}">{cigare_img}</a>
+          </div>
+
+          <p style="margin:0 0 10px 0;">
+            Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.
+          </p>
+
+          <p style="margin:0 0 14px 0;">
+            Rado Vas pozivamo i na prezentaciju koktela u našem Landsky Baru (Ozaljska 146),
+            gdje ćemo Vam detaljno predstaviti našu uslugu i odabrati najbolje za vaš event.
+          </p>
+
+          <div style="margin:14px 0;">
+            📸 Fotografija bara: <a href="{bar_img}">{bar_img}</a>
+          </div>
+
+          <div style="border-top:1px solid #eee; margin-top:16px; padding-top:14px;">
+            <div style="font-weight:700; margin-bottom:6px;">Potvrda ponude</div>
+            <p style="margin:0 0 10px 0;">Molimo potvrdite ponudu klikom:</p>
+            <p style="margin:0;">
+              ✅ <a href="{accept_link}">Prihvaćam</a><br>
+              ❌ <a href="{decline_link}">Odbijam</a>
+            </p>
+          </div>
+
+          <div style="margin-top:18px; color:#333;">
+            Srdačan pozdrav,<br>
+            <b>Landsky Catering</b><br>
+            E-mail: <a href="mailto:catering@landskybar.com">catering@landskybar.com</a><br>
+            Telefon: 091/594/6515
+          </div>
+        </div>
+      </div>
+    </div>
     """
 
 
 def internal_email_body(e: Event) -> str:
     preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
-    accept_link = f"{BASE_URL}/accept?token={e.token}"
-    decline_link = f"{BASE_URL}/decline?token={e.token}"
-
+    admin_link = f"{BASE_URL}/admin"
     return f"""
-    <h2>Novi upit (TEST)</h2>
-    <ul>
-      <li><b>Mladenci:</b> {e.first_name} {e.last_name}</li>
-      <li><b>Email mladenaca:</b> {e.email}</li>
-      <li><b>Telefon:</b> {e.phone}</li>
-      <li><b>Datum:</b> {e.wedding_date}</li>
-      <li><b>Sala:</b> {e.venue}</li>
-      <li><b>Gosti:</b> {e.guest_count}</li>
-      <li><b>Status:</b> {e.status}</li>
-    </ul>
+    <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
+      <h2>Novi upit (TEST)</h2>
+      <ul>
+        <li><b>Mladenci:</b> {html.escape(e.first_name)} {html.escape(e.last_name)}</li>
+        <li><b>Email mladenaca:</b> {html.escape(e.email)}</li>
+        <li><b>Telefon:</b> {html.escape(e.phone)}</li>
+        <li><b>Datum:</b> {html.escape(e.wedding_date)}</li>
+        <li><b>Sala:</b> {html.escape(e.venue)}</li>
+        <li><b>Gosti:</b> {e.guest_count}</li>
+        <li><b>Status:</b> {html.escape(e.status)}</li>
+      </ul>
 
-    <p><b>Napomena / Pitanja:</b><br>{(e.message or "").strip() or "(nema)"}</p>
+      <p><b>Napomena / Pitanja:</b><br>{html.escape((e.message or "").strip() or "(nema)").replace("\\n", "<br>")}</p>
 
-    <p><b>Preview ponude (što bi mladenac vidio):</b><br>
-      <a href="{preview_link}">{preview_link}</a>
-    </p>
+      <p><b>Preview ponude (što bi mladenac vidio):</b><br>
+        <a href="{preview_link}">{preview_link}</a>
+      </p>
 
-    <p><b>Direktni linkovi:</b><br>
-      <a href="{accept_link}">accept</a><br>
-      <a href="{decline_link}">decline</a>
-    </p>
+      <p><b>Admin:</b> <a href="{admin_link}">{admin_link}</a></p>
+    </div>
     """
 
 
 def send_offer_flow(e: Event):
     """
-    Test flow:
-    1) Always email you (internal) so you have everything.
-    2) Try to email couple (will fail on Resend test mode for non-owner emails).
+    Always:
+      - send internal email to you
+    In TEST_MODE:
+      - send offer only to you
+    Later (production):
+      - send offer to couple email
     """
-    # 1) Always internal
-    send_email(CATERING_TEAM_EMAIL, f"Novi upit: {e.first_name} {e.last_name} (TEST)", internal_email_body(e))
+    # internal always
+    send_email(
+        CATERING_TEAM_EMAIL,
+        f"Novi upit: {e.first_name} {e.last_name} (TEST)",
+        internal_email_body(e),
+    )
 
-    # 2) Couple offer (best effort)
-    couple_target = TEST_COUPLE_EMAIL or e.email
-    send_email(couple_target, "Ponuda za vaše vjenčanje", offer_email_body(e))
+    offer_html = offer_email_body(e)
+
+    if TEST_MODE:
+        # TEST MODE: offer goes only to you
+        send_email(
+            CATERING_TEAM_EMAIL,
+            f"Ponuda (TEST) – {e.first_name} {e.last_name}",
+            offer_html,
+        )
+    else:
+        # Production: offer goes to couple
+        send_email(e.email, "Ponuda za vaše vjenčanje", offer_html)
 
 
 # ======================
@@ -315,16 +413,15 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     db.commit()
     db.refresh(e)
 
-    # send emails (internal always, couple best effort)
     try:
         send_offer_flow(e)
     except Exception as ex:
-        # We do NOT fail registration if email fails
+        # we do not fail registration if email fails
         print("EMAIL SEND FAILED:", repr(ex))
 
     return {
         "message": "Vaš upit je zaprimljen.",
-        "preview_url": f"{BASE_URL}/offer-preview?token={e.token}",  # useful in test
+        "preview_url": f"{BASE_URL}/offer-preview?token={e.token}",
     }
 
 
