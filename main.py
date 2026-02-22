@@ -5,9 +5,10 @@ import requests
 from datetime import datetime
 from email.mime.text import MIMEText
 
-from fastapi import FastAPI, Depends, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Depends, Query, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
@@ -31,14 +32,15 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
-# For now (testing): Resend allows sending only to your own email unless domain is verified.
-# We'll keep SENDER_EMAIL as onboarding@resend.dev for Resend testing.
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
-# This is where ALL emails will go in TEST MODE (your email).
+# TEST MODE: all offer emails go here (your email)
 CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", "mkozina31@gmail.com")
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 
 # ======================
 # DB
@@ -48,7 +50,6 @@ engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
 )
-
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -68,7 +69,7 @@ class Event(Base):
     email = Column(String)
     phone = Column(String)
 
-    status = Column(String)
+    status = Column(String)     # pending / accepted / declined
     accepted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -113,12 +114,28 @@ def db_session():
 
 
 # ======================
+# ADMIN AUTH
+# ======================
+
+security = HTTPBasic()
+
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    if credentials.username != ADMIN_USER or credentials.password != ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+
+# ======================
 # EMAIL
 # ======================
 
 
 def send_email(to_email: str, subject: str, body: str):
-    # ✅ RESEND (production-friendly on Render)
+    # RESEND
     if EMAIL_PROVIDER == "resend":
         if not RESEND_API_KEY:
             raise RuntimeError("RESEND_API_KEY missing")
@@ -143,7 +160,7 @@ def send_email(to_email: str, subject: str, body: str):
 
         return
 
-    # ✅ SMTP fallback (local only)
+    # SMTP fallback (local only)
     msg = MIMEText(body, "html")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
@@ -175,18 +192,18 @@ def offer_email_body(e: Event):
 
 
 def send_offer_email(e: Event):
-    # ✅ TEST MODE: šalji ponudu samo na tvoj email (CATERING_TEAM_EMAIL)
+    # TEST MODE: šalji ponudu samo na tvoj email
     send_email(CATERING_TEAM_EMAIL, "Ponuda za vaše vjenčanje (TEST)", offer_email_body(e))
 
 
 # ======================
-# ROUTES
+# PUBLIC ROUTES
 # ======================
 
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return '<a href="/frontend">Otvori aplikaciju</a>'
+    return '<a href="/frontend/">Otvori aplikaciju</a> | <a href="/admin">Admin</a>'
 
 
 @app.post("/register")
@@ -222,7 +239,6 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
 @app.get("/accept", response_class=HTMLResponse)
 def accept(token: str = Query(...), db: Session = Depends(db_session)):
     e = db.query(Event).filter_by(token=token).first()
-
     if not e:
         return "<h1>Token ne postoji</h1>"
 
@@ -236,7 +252,6 @@ def accept(token: str = Query(...), db: Session = Depends(db_session)):
 @app.get("/decline", response_class=HTMLResponse)
 def decline(token: str = Query(...), db: Session = Depends(db_session)):
     e = db.query(Event).filter_by(token=token).first()
-
     if not e:
         return "<h1>Token ne postoji</h1>"
 
@@ -245,3 +260,94 @@ def decline(token: str = Query(...), db: Session = Depends(db_session)):
     db.commit()
 
     return "<h1>Ponuda odbijena</h1>"
+
+
+# ======================
+# ADMIN UI + API
+# ======================
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page():
+    path = os.path.join("frontend", "admin.html")
+    if os.path.isfile(path):
+        return FileResponse(path)
+    return HTMLResponse("<h2>admin.html not found</h2>", status_code=404)
+
+
+@app.get("/admin/api/events")
+def admin_list_events(
+    status: str | None = None,
+    q: str | None = None,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    query = db.query(Event)
+
+    if status:
+        query = query.filter(Event.status == status)
+
+    items = query.order_by(Event.id.desc()).all()
+
+    # simple search filter in python (ok for MVP)
+    if q:
+        qq = q.lower()
+        items = [
+            e for e in items
+            if (e.first_name and qq in e.first_name.lower())
+            or (e.last_name and qq in e.last_name.lower())
+            or (e.email and qq in e.email.lower())
+        ]
+
+    return {
+        "items": [
+            {
+                "id": e.id,
+                "token": e.token,
+                "first_name": e.first_name,
+                "last_name": e.last_name,
+                "wedding_date": e.wedding_date,
+                "venue": e.venue,
+                "guest_count": e.guest_count,
+                "email": e.email,
+                "phone": e.phone,
+                "status": e.status,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in items
+        ]
+    }
+
+
+@app.post("/admin/api/events/{event_id}/accept")
+def admin_accept_event(
+    event_id: int,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(404, "Not found")
+
+    e.accepted = True
+    e.status = "accepted"
+    db.commit()
+
+    return {"ok": True}
+
+
+@app.post("/admin/api/events/{event_id}/decline")
+def admin_decline_event(
+    event_id: int,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(404, "Not found")
+
+    e.accepted = False
+    e.status = "declined"
+    db.commit()
+
+    return {"ok": True}
