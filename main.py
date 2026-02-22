@@ -30,7 +30,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # "resend" or "smtp"
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend")  # "resend" or "smtp"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 # Resend testing sender (works without domain verification, but only allows sending to your own email)
@@ -74,8 +74,11 @@ class Event(Base):
     email = Column(String)
     phone = Column(String)
 
-    # NEW: note/questions from couple
+    # note/questions from couple
     message = Column(String, default="")
+
+    # NEW: selected package when accepting offer
+    selected_package = Column(String, default="")
 
     status = Column(String)  # pending / accepted / declined
     accepted = Column(Boolean, default=False)
@@ -85,14 +88,17 @@ class Event(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- MVP migration: add message column if missing (SQLite/Postgres) ---
+# --- MVP migrations ---
 try:
     with engine.begin() as conn:
+        # message
         if "sqlite" in DATABASE_URL:
             cols = conn.execute(text("PRAGMA table_info(events);")).fetchall()
             names = [c[1] for c in cols]
             if "message" not in names:
                 conn.execute(text("ALTER TABLE events ADD COLUMN message TEXT DEFAULT ''"))
+            if "selected_package" not in names:
+                conn.execute(text("ALTER TABLE events ADD COLUMN selected_package TEXT DEFAULT ''"))
         else:
             res = conn.execute(
                 text(
@@ -102,8 +108,17 @@ try:
             ).fetchone()
             if not res:
                 conn.execute(text("ALTER TABLE events ADD COLUMN message VARCHAR DEFAULT ''"))
+
+            res2 = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='events' AND column_name='selected_package';"
+                )
+            ).fetchone()
+            if not res2:
+                conn.execute(text("ALTER TABLE events ADD COLUMN selected_package VARCHAR DEFAULT ''"))
 except Exception as ex:
-    print("MIGRATION message skipped/failed:", repr(ex))
+    print("MIGRATIONS skipped/failed:", repr(ex))
 
 # ======================
 # SCHEMA
@@ -127,7 +142,7 @@ class RegistrationRequest(BaseModel):
 
 app = FastAPI(title="Landsky Wedding App")
 
-# Static frontend (/frontend/index.html, /frontend/admin.html, /frontend/logo.png, etc.)
+# Static frontend
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # ======================
@@ -182,7 +197,7 @@ def send_email(to_email: str, subject: str, body_html: str):
                 "subject": subject,
                 "html": body_html,
             },
-            timeout=20,
+            timeout=25,
         )
 
         if r.status_code >= 400:
@@ -190,7 +205,7 @@ def send_email(to_email: str, subject: str, body_html: str):
 
         return
 
-    # SMTP fallback (local only)
+    # SMTP fallback
     msg = MIMEText(body_html, "html")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
@@ -204,7 +219,7 @@ def send_email(to_email: str, subject: str, body_html: str):
 
 def offer_email_body(e: Event) -> str:
     """
-    This is the HTML offer email that couples receive.
+    HTML offer email that couples receive.
     We host logo + attachments on our own site and link them here.
     """
     logo_url = f"{BASE_URL}/frontend/logo.png"
@@ -223,7 +238,10 @@ def offer_email_body(e: Event) -> str:
       <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
         <div style="background:#0b0f14; padding:18px 18px 12px 18px;">
           <div style="display:flex; align-items:center; gap:14px;">
-            <img src="{logo_url}" alt="Landsky Catering" style="width:68px; height:68px; object-fit:contain; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15); border-radius:14px; padding:10px;">
+            <img src="{logo_url}" alt="Landsky Catering"
+              style="width:68px; height:68px; object-fit:contain;
+                     background:#ffffff; border:1px solid rgba(0,0,0,.08);
+                     border-radius:14px; padding:10px;">
             <div>
               <div style="color:#fff; font-size:18px; font-weight:700;">Landsky Catering</div>
               <div style="color:rgba(255,255,255,.7); font-size:12px;">Ponuda za vjenčanje</div>
@@ -263,9 +281,9 @@ def offer_email_body(e: Event) -> str:
 
           <div style="background:#fff7e6; border:1px solid #f3e3bf; border-radius:12px; padding:12px 14px; margin:14px 0;">
             <div style="font-weight:700; margin-bottom:6px;">Cijene paketa</div>
-            <div>• <b>Klasični koktel paket:</b> 1.000 EUR + PDV (100 koktela) — svakih dodatnih 100: 500 EUR + PDV</div>
-            <div>• <b>Premium koktel paket:</b> 1.200 EUR + PDV (100 koktela) — svakih dodatnih 100: 600 EUR + PDV</div>
-            <div>• <b>Signature koktel paket:</b> 1.500 EUR + PDV (100 koktela) — svakih dodatnih 100: 800 EUR + PDV</div>
+            <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
+            <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) — dodatnih 100: 600 EUR + PDV</div>
+            <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) — dodatnih 100: 800 EUR + PDV</div>
             <div style="margin-top:8px; color:#6b5a2a;">* Preporučujemo 200 koktela.</div>
             <div style="margin-top:10px;">
               📎 Detalji paketa: <a href="{cocktails_pdf}">{cocktails_pdf}</a>
@@ -276,7 +294,7 @@ def offer_email_body(e: Event) -> str:
             <div style="font-weight:700; margin-bottom:6px;">Premium cigare (opcionalno)</div>
             <p style="margin:0 0 8px 0;">
               Uz odabir cigara od nas dobivate humidor, rezač, upaljač i pepeljare.
-              Nudimo i <b>Cigar Connoisseur</b> uslugu (stručno vođenje, rezanje i paljenje) — <b>450 EUR + PDV</b> (3 sata).
+              Nudimo i <b>Cigar Connoisseur</b> uslugu — <b>450 EUR + PDV</b> (3 sata).
             </p>
             📎 Popis cigara: <a href="{cigare_img}">{cigare_img}</a>
           </div>
@@ -351,7 +369,6 @@ def send_offer_flow(e: Event):
     Later (production):
       - send offer to couple email
     """
-    # internal always
     send_email(
         CATERING_TEAM_EMAIL,
         f"Novi upit: {e.first_name} {e.last_name} (TEST)",
@@ -361,14 +378,12 @@ def send_offer_flow(e: Event):
     offer_html = offer_email_body(e)
 
     if TEST_MODE:
-        # TEST MODE: offer goes only to you
         send_email(
             CATERING_TEAM_EMAIL,
             f"Ponuda (TEST) – {e.first_name} {e.last_name}",
             offer_html,
         )
     else:
-        # Production: offer goes to couple
         send_email(e.email, "Ponuda za vaše vjenčanje", offer_html)
 
 
@@ -404,6 +419,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
         email=str(payload.email),
         phone=payload.phone,
         message=(payload.message or "").strip(),
+        selected_package="",
         status="pending",
         accepted=False,
         created_at=datetime.utcnow(),
@@ -416,7 +432,6 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     try:
         send_offer_flow(e)
     except Exception as ex:
-        # we do not fail registration if email fails
         print("EMAIL SEND FAILED:", repr(ex))
 
     return {
@@ -426,16 +441,69 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
 
 
 @app.get("/accept", response_class=HTMLResponse)
-def accept(token: str = Query(...), db: Session = Depends(db_session)):
+def accept(
+    token: str = Query(...),
+    package: str | None = Query(None),
+    db: Session = Depends(db_session),
+):
     e = db.query(Event).filter_by(token=token).first()
     if not e:
-        return "<h1>Token ne postoji</h1>"
+        return HTMLResponse("<h1>Token ne postoji</h1>", status_code=404)
+
+    allowed = {"classic": "Classic", "premium": "Premium", "signature": "Signature"}
+
+    # if no package selected -> show selection form
+    if not package:
+        return HTMLResponse(f"""
+        <div style="font-family:Arial; max-width:640px; margin:40px auto; padding:20px; border:1px solid #eee; border-radius:12px;">
+          <h2>Odaberite paket prije potvrde</h2>
+          <p><b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b> — {html.escape(e.wedding_date)} — {html.escape(e.venue)}</p>
+
+          <form method="get" action="/accept">
+            <input type="hidden" name="token" value="{html.escape(token)}" />
+
+            <label style="display:block; padding:10px; border:1px solid #eee; border-radius:10px; margin:8px 0;">
+              <input type="radio" name="package" value="classic" required />
+              <b>Classic</b> — 1.000 EUR + PDV (100 koktela)
+            </label>
+
+            <label style="display:block; padding:10px; border:1px solid #eee; border-radius:10px; margin:8px 0;">
+              <input type="radio" name="package" value="premium" required />
+              <b>Premium</b> — 1.200 EUR + PDV (100 koktela)
+            </label>
+
+            <label style="display:block; padding:10px; border:1px solid #eee; border-radius:10px; margin:8px 0;">
+              <input type="radio" name="package" value="signature" required />
+              <b>Signature</b> — 1.500 EUR + PDV (100 koktela)
+            </label>
+
+            <button type="submit" style="margin-top:14px; padding:12px 16px; border:0; border-radius:10px; background:#111; color:#fff; cursor:pointer;">
+              Potvrdi odabrani paket
+            </button>
+          </form>
+        </div>
+        """)
+
+    # validate + save
+    key = package.strip().lower()
+    if key not in allowed:
+        return HTMLResponse(
+            "<h2>Neispravan paket.</h2><p>Vratite se i odaberite Classic/Premium/Signature.</p>",
+            status_code=400,
+        )
 
     e.accepted = True
     e.status = "accepted"
+    e.selected_package = allowed[key]
     db.commit()
 
-    return "<h1>Ponuda prihvaćena 🎉</h1>"
+    return HTMLResponse(f"""
+    <div style="font-family:Arial; max-width:640px; margin:40px auto; padding:20px; border:1px solid #eee; border-radius:12px;">
+      <h1>Ponuda prihvaćena 🎉</h1>
+      <p>Odabrani paket: <b>{html.escape(e.selected_package)}</b></p>
+      <p>Hvala! Javit ćemo vam se s daljnjim detaljima.</p>
+    </div>
+    """)
 
 
 @app.get("/decline", response_class=HTMLResponse)
@@ -502,6 +570,7 @@ def admin_list_events(
                 "phone": e.phone,
                 "message": e.message or "",
                 "status": e.status,
+                "selected_package": e.selected_package or "",
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
             for e in items
@@ -521,6 +590,8 @@ def admin_accept_event(
 
     e.accepted = True
     e.status = "accepted"
+    if not e.selected_package:
+        e.selected_package = "—"
     db.commit()
 
     return {"ok": True}
