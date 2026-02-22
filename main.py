@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, text
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 from pydantic import BaseModel, EmailStr
@@ -32,16 +32,19 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # "resend" or "smtp"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
-# For Resend testing use: onboarding@resend.dev (works without domain verification, but only sends to your email)
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
-# TEST MODE: all outgoing "offer" emails go here (your email)
+# Internal inbox (you)
 CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", "mkozina31@gmail.com")
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
 
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
+
+# If you set this, it overrides who receives the "couple offer" email (useful later).
+# In Resend test mode it will still fail for non-owner emails, so we keep it optional.
+TEST_COUPLE_EMAIL = os.getenv("TEST_COUPLE_EMAIL")  # e.g. mkozina@intercars.eu
 
 # ======================
 # DB
@@ -70,6 +73,9 @@ class Event(Base):
     email = Column(String)
     phone = Column(String)
 
+    # NEW: message/questions from couple
+    message = Column(String, default="")
+
     status = Column(String)  # pending / accepted / declined
     accepted = Column(Boolean, default=False)
 
@@ -77,6 +83,26 @@ class Event(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+# --- MVP migration: add message column if missing (SQLite/Postgres) ---
+try:
+    with engine.begin() as conn:
+        if "sqlite" in DATABASE_URL:
+            cols = conn.execute(text("PRAGMA table_info(events);")).fetchall()
+            names = [c[1] for c in cols]
+            if "message" not in names:
+                conn.execute(text("ALTER TABLE events ADD COLUMN message TEXT DEFAULT ''"))
+        else:
+            res = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='events' AND column_name='message';"
+                )
+            ).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE events ADD COLUMN message VARCHAR DEFAULT ''"))
+except Exception as ex:
+    print("MIGRATION message skipped/failed:", repr(ex))
 
 # ======================
 # SCHEMA
@@ -91,6 +117,7 @@ class RegistrationRequest(BaseModel):
     guest_count: int
     email: EmailStr
     phone: str
+    message: str | None = None  # NEW
 
 
 # ======================
@@ -99,7 +126,6 @@ class RegistrationRequest(BaseModel):
 
 app = FastAPI(title="Landsky Wedding App")
 
-# Static frontend (index.html, admin.html, etc.)
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # ======================
@@ -136,7 +162,7 @@ def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
 # ======================
 
 
-def send_email(to_email: str, subject: str, body: str):
+def send_email(to_email: str, subject: str, body_html: str):
     # RESEND
     if EMAIL_PROVIDER == "resend":
         if not RESEND_API_KEY:
@@ -152,7 +178,7 @@ def send_email(to_email: str, subject: str, body: str):
                 "from": SENDER_EMAIL,
                 "to": [to_email],
                 "subject": subject,
-                "html": body,
+                "html": body_html,
             },
             timeout=20,
         )
@@ -163,7 +189,7 @@ def send_email(to_email: str, subject: str, body: str):
         return
 
     # SMTP fallback (local only)
-    msg = MIMEText(body, "html")
+    msg = MIMEText(body_html, "html")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
     msg["To"] = to_email
@@ -174,28 +200,78 @@ def send_email(to_email: str, subject: str, body: str):
     server.quit()
 
 
-def offer_email_body(e: Event):
+def offer_email_body(e: Event) -> str:
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
+
+    msg_block = ""
+    if (e.message or "").strip():
+        msg_block = f"""
+        <p><b>Napomena / Pitanja mladenaca:</b><br>
+        {e.message}</p>
+        """
 
     return f"""
     <h2>Ponuda za vjenčanje</h2>
     <p>Poštovani {e.first_name} {e.last_name},</p>
 
-    <p><b>TEST INFO:</b> Upit poslan od (email mladenaca): <b>{e.email}</b></p>
+    <p>Zaprimili smo vaš upit:</p>
+    <ul>
+      <li><b>Datum:</b> {e.wedding_date}</li>
+      <li><b>Lokacija / sala:</b> {e.venue}</li>
+      <li><b>Broj gostiju:</b> {e.guest_count}</li>
+    </ul>
 
-    <p>Vaš upit je zaprimljen.</p>
+    {msg_block}
 
     <p>Molimo potvrdite ponudu:</p>
-
     <a href="{accept_link}">Prihvaćam</a><br>
     <a href="{decline_link}">Odbijam</a>
     """
 
 
-def send_offer_email(e: Event):
-    # TEST MODE: šalji ponudu samo na tvoj email
-    send_email(CATERING_TEAM_EMAIL, "Ponuda za vaše vjenčanje (TEST)", offer_email_body(e))
+def internal_email_body(e: Event) -> str:
+    preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
+    accept_link = f"{BASE_URL}/accept?token={e.token}"
+    decline_link = f"{BASE_URL}/decline?token={e.token}"
+
+    return f"""
+    <h2>Novi upit (TEST)</h2>
+    <ul>
+      <li><b>Mladenci:</b> {e.first_name} {e.last_name}</li>
+      <li><b>Email mladenaca:</b> {e.email}</li>
+      <li><b>Telefon:</b> {e.phone}</li>
+      <li><b>Datum:</b> {e.wedding_date}</li>
+      <li><b>Sala:</b> {e.venue}</li>
+      <li><b>Gosti:</b> {e.guest_count}</li>
+      <li><b>Status:</b> {e.status}</li>
+    </ul>
+
+    <p><b>Napomena / Pitanja:</b><br>{(e.message or "").strip() or "(nema)"}</p>
+
+    <p><b>Preview ponude (što bi mladenac vidio):</b><br>
+      <a href="{preview_link}">{preview_link}</a>
+    </p>
+
+    <p><b>Direktni linkovi:</b><br>
+      <a href="{accept_link}">accept</a><br>
+      <a href="{decline_link}">decline</a>
+    </p>
+    """
+
+
+def send_offer_flow(e: Event):
+    """
+    Test flow:
+    1) Always email you (internal) so you have everything.
+    2) Try to email couple (will fail on Resend test mode for non-owner emails).
+    """
+    # 1) Always internal
+    send_email(CATERING_TEAM_EMAIL, f"Novi upit: {e.first_name} {e.last_name} (TEST)", internal_email_body(e))
+
+    # 2) Couple offer (best effort)
+    couple_target = TEST_COUPLE_EMAIL or e.email
+    send_email(couple_target, "Ponuda za vaše vjenčanje", offer_email_body(e))
 
 
 # ======================
@@ -206,6 +282,14 @@ def send_offer_email(e: Event):
 @app.get("/", response_class=HTMLResponse)
 def home():
     return '<a href="/frontend/">Otvori aplikaciju</a> | <a href="/admin">Admin</a>'
+
+
+@app.get("/offer-preview", response_class=HTMLResponse)
+def offer_preview(token: str = Query(...), db: Session = Depends(db_session)):
+    e = db.query(Event).filter_by(token=token).first()
+    if not e:
+        return HTMLResponse("<h1>Token ne postoji</h1>", status_code=404)
+    return HTMLResponse(offer_email_body(e))
 
 
 @app.post("/register")
@@ -221,6 +305,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
         guest_count=payload.guest_count,
         email=str(payload.email),
         phone=payload.phone,
+        message=(payload.message or "").strip(),
         status="pending",
         accepted=False,
         created_at=datetime.utcnow(),
@@ -230,12 +315,17 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     db.commit()
     db.refresh(e)
 
+    # send emails (internal always, couple best effort)
     try:
-        send_offer_email(e)
+        send_offer_flow(e)
     except Exception as ex:
+        # We do NOT fail registration if email fails
         print("EMAIL SEND FAILED:", repr(ex))
 
-    return {"message": "Vaš upit je zaprimljen."}
+    return {
+        "message": "Vaš upit je zaprimljen.",
+        "preview_url": f"{BASE_URL}/offer-preview?token={e.token}",  # useful in test
+    }
 
 
 @app.get("/accept", response_class=HTMLResponse)
@@ -291,7 +381,6 @@ def admin_list_events(
 
     items = query.order_by(Event.id.desc()).all()
 
-    # Simple search (MVP)
     if q:
         qq = q.lower()
         items = [
@@ -314,6 +403,7 @@ def admin_list_events(
                 "guest_count": e.guest_count,
                 "email": e.email,
                 "phone": e.phone,
+                "message": e.message or "",
                 "status": e.status,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
@@ -367,7 +457,7 @@ def admin_resend_offer(
         raise HTTPException(404, "Not found")
 
     try:
-        send_offer_email(e)
+        send_offer_flow(e)
     except Exception as ex:
         print("EMAIL SEND FAILED:", repr(ex))
         raise HTTPException(500, f"Email failed: {repr(ex)}")
