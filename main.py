@@ -45,7 +45,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
 # Landsky mailbox (fixed by spec)
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "catering@landskybar.com")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "mkozina31@gmail.com")
 
 # Where internal notifications go (defaults to same)
 CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", SENDER_EMAIL)
