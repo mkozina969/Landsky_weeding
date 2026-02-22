@@ -31,8 +31,13 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
+# For now (testing): Resend allows sending only to your own email unless domain is verified.
+# We'll keep SENDER_EMAIL as onboarding@resend.dev for Resend testing.
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
-CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", SENDER_EMAIL)
+
+# This is where ALL emails will go in TEST MODE (your email).
+CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", "mkozina31@gmail.com")
+
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 # ======================
@@ -113,8 +118,7 @@ def db_session():
 
 
 def send_email(to_email: str, subject: str, body: str):
-
-    # ✅ RESEND (production)
+    # ✅ RESEND (production-friendly on Render)
     if EMAIL_PROVIDER == "resend":
         if not RESEND_API_KEY:
             raise RuntimeError("RESEND_API_KEY missing")
@@ -139,7 +143,7 @@ def send_email(to_email: str, subject: str, body: str):
 
         return
 
-    # ✅ SMTP fallback (local)
+    # ✅ SMTP fallback (local only)
     msg = MIMEText(body, "html")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
@@ -159,6 +163,8 @@ def offer_email_body(e: Event):
     <h2>Ponuda za vjenčanje</h2>
     <p>Poštovani {e.first_name} {e.last_name},</p>
 
+    <p><b>TEST INFO:</b> Upit poslan od (email mladenaca): <b>{e.email}</b></p>
+
     <p>Vaš upit je zaprimljen.</p>
 
     <p>Molimo potvrdite ponudu:</p>
@@ -169,7 +175,8 @@ def offer_email_body(e: Event):
 
 
 def send_offer_email(e: Event):
-    send_email(e.email, "Ponuda za vaše vjenčanje", offer_email_body(e))
+    # ✅ TEST MODE: šalji ponudu samo na tvoj email (CATERING_TEAM_EMAIL)
+    send_email(CATERING_TEAM_EMAIL, "Ponuda za vaše vjenčanje (TEST)", offer_email_body(e))
 
 
 # ======================
@@ -184,7 +191,6 @@ def home():
 
 @app.post("/register")
 def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
-
     token = str(uuid.uuid4())
 
     e = Event(
