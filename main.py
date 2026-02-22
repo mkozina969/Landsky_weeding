@@ -345,11 +345,11 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     db.refresh(e)
 
    try:
-    send_offer_email(e)
-except Exception as ex:
-    print("EMAIL SEND FAILED:", repr(ex))
+       send_offer_email(e)
+   except Exception as ex:
+       print("EMAIL SEND FAILED:", repr(ex))
 
-return {"message": "Vaš upit je zaprimljen. (Email je privremeno u test modu)"}
+   return {"message": "Vaš upit je zaprimljen. (Email je privremeno u test modu)"}
 
 
 @app.get("/accept", response_class=HTMLResponse)
