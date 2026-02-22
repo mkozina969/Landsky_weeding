@@ -1,6 +1,7 @@
 import os
 import uuid
 import smtplib
+import requests
 from datetime import datetime
 from email.mime.text import MIMEText
 
@@ -27,7 +28,10 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "mkozina31@gmail.com")
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", SENDER_EMAIL)
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -35,9 +39,14 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 # DB
 # ======================
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+)
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
+
 
 class Event(Base):
     __tablename__ = "events"
@@ -59,11 +68,13 @@ class Event(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 Base.metadata.create_all(bind=engine)
 
 # ======================
 # SCHEMA
 # ======================
+
 
 class RegistrationRequest(BaseModel):
     first_name: str
@@ -73,6 +84,7 @@ class RegistrationRequest(BaseModel):
     guest_count: int
     email: EmailStr
     phone: str
+
 
 # ======================
 # APP
@@ -86,6 +98,7 @@ app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="front
 # DEP
 # ======================
 
+
 def db_session():
     db = SessionLocal()
     try:
@@ -93,11 +106,40 @@ def db_session():
     finally:
         db.close()
 
+
 # ======================
 # EMAIL
 # ======================
 
+
 def send_email(to_email: str, subject: str, body: str):
+
+    # ✅ RESEND (production)
+    if EMAIL_PROVIDER == "resend":
+        if not RESEND_API_KEY:
+            raise RuntimeError("RESEND_API_KEY missing")
+
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": SENDER_EMAIL,
+                "to": [to_email],
+                "subject": subject,
+                "html": body,
+            },
+            timeout=20,
+        )
+
+        if r.status_code >= 400:
+            raise RuntimeError(f"Resend error: {r.text}")
+
+        return
+
+    # ✅ SMTP fallback (local)
     msg = MIMEText(body, "html")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
@@ -107,6 +149,7 @@ def send_email(to_email: str, subject: str, body: str):
     server.login(SMTP_USER, SMTP_PASSWORD)
     server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
     server.quit()
+
 
 def offer_email_body(e: Event):
     accept_link = f"{BASE_URL}/accept?token={e.token}"
@@ -124,16 +167,20 @@ def offer_email_body(e: Event):
     <a href="{decline_link}">Odbijam</a>
     """
 
+
 def send_offer_email(e: Event):
     send_email(e.email, "Ponuda za vaše vjenčanje", offer_email_body(e))
+
 
 # ======================
 # ROUTES
 # ======================
 
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return '<a href="/frontend">Otvori aplikaciju</a>'
+
 
 @app.post("/register")
 def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
@@ -165,6 +212,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
 
     return {"message": "Vaš upit je zaprimljen."}
 
+
 @app.get("/accept", response_class=HTMLResponse)
 def accept(token: str = Query(...), db: Session = Depends(db_session)):
     e = db.query(Event).filter_by(token=token).first()
@@ -177,6 +225,7 @@ def accept(token: str = Query(...), db: Session = Depends(db_session)):
     db.commit()
 
     return "<h1>Ponuda prihvaćena 🎉</h1>"
+
 
 @app.get("/decline", response_class=HTMLResponse)
 def decline(token: str = Query(...), db: Session = Depends(db_session)):
