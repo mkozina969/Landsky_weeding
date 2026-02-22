@@ -20,7 +20,7 @@
     .pending { background:#fff3cd; }
     .accepted { background:#d1e7dd; }
     .declined { background:#f8d7da; }
-    .actions { display:flex; gap:8px; }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; }
     .error { color:#b00020; }
     .ok { color:#0a7b34; }
     .small { font-size:12px; }
@@ -168,6 +168,7 @@
           <div class="actions">
             <button data-action="accept" data-id="${e.id}" ${e.status==="accepted" ? "disabled" : ""}>Accept</button>
             <button data-action="decline" data-id="${e.id}" ${e.status==="declined" ? "disabled" : ""}>Decline</button>
+            <button data-action="resend" data-id="${e.id}">Resend</button>
           </div>
         </td>
       `;
@@ -181,7 +182,8 @@
         const action = btn.getAttribute("data-action");
         if (!id || !action) return;
 
-        if (!confirm(`Sigurno? ${action.toUpperCase()} event #${id}`)) return;
+        const label = action.toUpperCase();
+        if (!confirm(`Sigurno? ${label} event #${id}`)) return;
 
         try {
           setMsg("Šaljem...");
