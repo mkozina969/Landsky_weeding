@@ -1,269 +1,242 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="hr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Landsky Catering – Upit za vjenčanje</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Landsky Wedding — Upit</title>
   <style>
     :root{
-      --bg:#FFFFFF;
-      --card:#121824;
-      --muted:#000000;
-      --text:#000000;
+      --bg1:#0b0f14;
+      --bg2:#1a2430;
+      --card:rgba(18,24,32,.74);
       --border:rgba(255,255,255,.10);
-      --accent:#e7c36a;
+      --muted:rgba(255,255,255,.65);
+      --text:#fff;
+      --accent:#e0b85a;
+      --ok:#36d399;
+      --err:#ff6b6b;
     }
-    *{ box-sizing:border-box; }
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: radial-gradient(1200px 600px at 20% 10%, rgba(231,195,106,.18), transparent 60%),
-                  radial-gradient(900px 500px at 80% 0%, rgba(100,180,255,.12), transparent 55%),
-                  var(--bg);
-      color:var(--text);
       min-height:100vh;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 20% 10%, rgba(224,184,90,.18), transparent 55%),
+        radial-gradient(800px 500px at 80% 30%, rgba(120,160,255,.15), transparent 60%),
+        linear-gradient(160deg, var(--bg2), var(--bg1));
       display:flex;
       align-items:center;
       justify-content:center;
-      padding:32px 16px;
+      padding:28px 14px;
     }
-    .wrap{ width: min(920px, 100%); }
+    .wrap{width:min(980px,100%);}
+
     .top{
       display:flex;
-      gap:20px;
       align-items:center;
       justify-content:space-between;
+      gap:16px;
       margin-bottom:18px;
-      flex-wrap:wrap;
     }
     .brand{
       display:flex;
-      gap:14px;
       align-items:center;
+      gap:16px;
     }
-    .logo{
-      width:160px;
-      height:160px;
-      object-fit:contain;
-      border-radius:16px;
-      background: rgba(255,255,255,.04);
-      border:1px solid var(--border);
-      padding:10px;
+    .logoBadge{
+      width:78px;height:78px;
+      background:#fff;
+      border-radius:18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(0,0,0,.08);
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      overflow:hidden;
     }
-    h1{
-      font-size:22px;
-      margin:0;
-      letter-spacing:.2px;
+    .logoBadge img{
+      width:62px;height:62px;object-fit:contain;
     }
-    .subtitle{
-      margin:4px 0 0 0;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.35;
-    }
+    h1{margin:0;font-size:30px;letter-spacing:.2px;}
+    .sub{margin-top:6px;color:var(--muted);font-size:14px;}
+    .admin a{color:var(--accent);text-decoration:none}
+    .admin a:hover{text-decoration:underline}
+
     .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      background:var(--card);
       border:1px solid var(--border);
       border-radius:18px;
       padding:18px;
-      box-shadow: 0 12px 40px rgba(0,0,0,.45);
+      box-shadow:0 16px 60px rgba(0,0,0,.38);
+      backdrop-filter: blur(10px);
     }
-    form{
+    .grid{
       display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
     }
-    .full{ grid-column: 1 / -1; }
-    label{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      font-size:13px;
-      color:var(--muted);
-    }
+    .row{display:flex;flex-direction:column;gap:8px;}
+    label{font-size:12px;color:var(--muted);letter-spacing:.2px;}
     input, textarea{
       width:100%;
-      padding:10px 12px;
+      padding:12px 12px;
       border-radius:12px;
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.25);
-      color:var(--text);
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.24);
+      color:#fff;
       outline:none;
-      font-size:14px;
     }
     input:focus, textarea:focus{
-      border-color: rgba(231,195,106,.55);
-      box-shadow: 0 0 0 3px rgba(231,195,106,.12);
+      border-color:rgba(224,184,90,.55);
+      box-shadow:0 0 0 4px rgba(224,184,90,.18);
     }
-    textarea{ min-height:110px; resize:vertical; }
+    textarea{min-height:120px;resize:vertical;}
+    .full{grid-column:1 / -1;}
     .actions{
+      margin-top:14px;
       display:flex;
-      gap:12px;
       align-items:center;
       justify-content:space-between;
+      gap:12px;
       flex-wrap:wrap;
-      margin-top:6px;
     }
     button{
-      border:none;
-      cursor:pointer;
-      padding:10px 14px;
+      padding:12px 18px;
       border-radius:12px;
-      background: rgba(231,195,106,.95);
-      color:#161616;
+      border:0;
+      background:var(--accent);
+      color:#111;
       font-weight:700;
-      letter-spacing:.2px;
+      cursor:pointer;
+      box-shadow:0 12px 24px rgba(224,184,90,.18);
     }
-    button:disabled{ opacity:.6; cursor:not-allowed; }
-    .note{
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.35;
-    }
-    .status{
+    button:hover{filter:brightness(1.02)}
+    .hint{color:var(--muted);font-size:12px;}
+    .msg{
       margin-top:14px;
-      padding:12px 14px;
       border-radius:14px;
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.22);
-      color:var(--text);
-      white-space: pre-wrap;
+      padding:14px;
+      border:1px solid rgba(54,211,153,.35);
+      background:rgba(54,211,153,.10);
+      display:none;
+      white-space:pre-wrap;
     }
-    .ok{ border-color: rgba(46, 204, 113, .35); }
-    .err{ border-color: rgba(231, 76, 60, .45); }
-    a{ color: var(--accent); }
-    @media (max-width: 720px){
-      form{ grid-template-columns: 1fr; }
-      .logo{ width:72px; height:72px; }
+    .msg.err{
+      border-color:rgba(255,107,107,.35);
+      background:rgba(255,107,107,.10);
+    }
+    @media (max-width:820px){
+      .grid{grid-template-columns:1fr;}
+      h1{font-size:26px;}
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
       <div class="brand">
-        <!-- Logo: stavi frontend/logo.png -->
-        <img class="logo" src="logo.png" alt="Landsky Catering logo" />
+        <div class="logoBadge">
+          <img src="logo.png" alt="Landsky Catering logo" />
+        </div>
         <div>
           <h1>Upit za vjenčanje</h1>
-          <p class="subtitle">
-            Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit. U test fazi potvrde stižu na internu adresu.
-          </p>
+          <div class="sub">Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit.</div>
         </div>
       </div>
-      <div class="note">
-        Admin: <a href="/admin" target="_blank">/admin</a>
-      </div>
+      <div class="admin"><a href="/admin">Admin</a></div>
     </div>
 
     <div class="card">
-      <form id="registrationForm">
-        <label>
-          Ime
-          <input type="text" id="first_name" required />
-        </label>
+      <form id="f">
+        <div class="grid">
+          <div class="row">
+            <label>Ime</label>
+            <input name="first_name" placeholder="npr. Mario" required />
+          </div>
+          <div class="row">
+            <label>Prezime</label>
+            <input name="last_name" placeholder="npr. Kozina" required />
+          </div>
 
-        <label>
-          Prezime
-          <input type="text" id="last_name" required />
-        </label>
+          <div class="row">
+            <label>Datum vjenčanja</label>
+            <input name="wedding_date" type="date" required />
+          </div>
+          <div class="row">
+            <label>Lokacija / Sala</label>
+            <input name="venue" placeholder="npr. Sala Korana" required />
+          </div>
 
-        <label>
-          Datum vjenčanja
-          <input type="date" id="wedding_date" required />
-        </label>
+          <div class="row">
+            <label>Broj gostiju</label>
+            <input name="guest_count" type="number" min="1" placeholder="npr. 120" required />
+          </div>
+          <div class="row">
+            <label>E-mail</label>
+            <input name="email" type="email" placeholder="npr. mladenci@email.com" required />
+          </div>
 
-        <label>
-          Lokacija / Sala
-          <input type="text" id="venue" required placeholder="npr. Sala Korana" />
-        </label>
+          <div class="row full">
+            <label>Telefon</label>
+            <input name="phone" placeholder="npr. +385 99 123 4567" required />
+          </div>
 
-        <label>
-          Broj gostiju
-          <input type="number" id="guest_count" required min="1" placeholder="npr. 120" />
-        </label>
-
-        <label>
-          E-mail
-          <input type="email" id="email" required placeholder="npr. mladenci@email.com" />
-        </label>
-
-        <label class="full">
-          Telefon
-          <input type="text" id="phone" required placeholder="npr. +385 99 123 4567" />
-        </label>
-
-        <label class="full">
-          Napomena / Pitanja (opcionalno)
-          <textarea id="message" placeholder="Npr. veganske opcije, bezalkoholni bar, okvirna cijena po osobi, posebne želje..."></textarea>
-        </label>
-
-        <div class="actions full">
-          <button id="submitBtn" type="submit">Pošalji upit</button>
-          <div class="note">
-            Nakon slanja prikazat ćemo potvrdu. U test fazi može se pojaviti i “preview link”.
+          <div class="row full">
+            <label>Napomena / Pitanja (opcionalno)</label>
+            <textarea name="message" placeholder="Npr. veganske opcije, bezalkoholni bar, okvirna cijena po osobi, posebne želje..."></textarea>
           </div>
         </div>
-      </form>
 
-      <div id="status" class="status" style="display:none;"></div>
+        <div class="actions">
+          <button type="submit">Pošalji upit</button>
+          <div class="hint">Nakon slanja prikazat ćemo potvrdu. U test fazi može se pojaviti i “preview link”.</div>
+        </div>
+
+        <div id="msg" class="msg"></div>
+      </form>
     </div>
   </div>
 
   <script>
-    const statusEl = document.getElementById('status');
-    const btn = document.getElementById('submitBtn');
+    const form = document.getElementById('f');
+    const msgEl = document.getElementById('msg');
 
-    function showStatus(text, kind) {
-      statusEl.style.display = "block";
-      statusEl.className = "status " + (kind || "");
-      statusEl.textContent = text;
-    }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msgEl.style.display = 'none';
+      msgEl.classList.remove('err');
 
-    document.getElementById('registrationForm').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      btn.disabled = true;
-      showStatus("Šaljem upit...", "");
+      const fd = new FormData(form);
+      const payload = Object.fromEntries(fd.entries());
+      payload.guest_count = Number(payload.guest_count);
 
-      const data = {
-        first_name: document.getElementById('first_name').value,
-        last_name: document.getElementById('last_name').value,
-        wedding_date: document.getElementById('wedding_date').value,
-        venue: document.getElementById('venue').value,
-        guest_count: parseInt(document.getElementById('guest_count').value),
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value,
-        message: document.getElementById('message').value || null
-      };
-
-      try {
-        const res = await fetch('/register', {
+      try{
+        const r = await fetch('/register', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
         });
 
-        const text = await res.text();
-        let json;
-        try { json = JSON.parse(text); } catch { json = { raw: text }; }
-
-        if (!res.ok) {
-          showStatus("Greška:\n" + JSON.stringify(json, null, 2), "err");
-          btn.disabled = false;
-          return;
+        const data = await r.json().catch(()=> ({}));
+        if(!r.ok){
+          throw new Error(data.detail || 'Greška pri slanju upita.');
         }
 
-        let out = (json.message || "Upit je poslan.");
-        if (json.preview_url) {
-          out += "\n\nTEST preview:\n" + json.preview_url;
+        let text = (data.message || 'Upit poslan.');
+        if (data.preview_url){
+          text += "\n\nTEST preview:\n" + data.preview_url;
         }
 
-        showStatus(out, "ok");
-        document.getElementById('registrationForm').reset();
-      } catch (e) {
-        showStatus("Greška pri slanju: " + e, "err");
-      } finally {
-        btn.disabled = false;
+        msgEl.textContent = text;
+        msgEl.style.display = 'block';
+        form.reset();
+
+      }catch(err){
+        msgEl.textContent = err.message || String(err);
+        msgEl.classList.add('err');
+        msgEl.style.display = 'block';
       }
     });
   </script>
