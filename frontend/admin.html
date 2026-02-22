@@ -1,219 +1,263 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="hr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Landsky Admin</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    h1 { margin: 0 0 6px 0; }
-    .muted { color:#666; font-size: 13px; }
-    .card { border:1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
-    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: end; }
-    label { display:flex; flex-direction: column; gap: 6px; font-size: 14px; }
-    input, select, button { padding: 8px; font-size: 14px; }
-    button { cursor:pointer; }
-    table { width:100%; border-collapse: collapse; margin-top: 12px; }
-    th, td { border-bottom:1px solid #eee; padding:10px; text-align:left; vertical-align: top; }
-    th { background:#fafafa; position: sticky; top: 0; }
-    .pill { padding: 3px 8px; border-radius: 999px; font-size: 12px; display:inline-block; }
-    .pending { background:#fff3cd; }
-    .accepted { background:#d1e7dd; }
-    .declined { background:#f8d7da; }
-    .actions { display:flex; gap:8px; flex-wrap: wrap; }
-    .error { color:#b00020; }
-    .ok { color:#0a7b34; }
-    .small { font-size:12px; }
+    :root{
+      --bg:#0b0f14;
+      --panel:rgba(255,255,255,.06);
+      --stroke:rgba(255,255,255,.14);
+      --text:#e8eef7;
+      --muted:rgba(255,255,255,.65);
+      --gold:#d7b46a;
+      --ok:#32d296;
+      --bad:#ff5a5f;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      color:var(--text);
+      background:linear-gradient(180deg,#0b0f14,#101826);
+      padding:22px;
+    }
+    h1{margin:0 0 6px 0}
+    .sub{margin:0 0 14px 0; color:var(--muted); font-size:13px}
+    .bar{
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:center;
+      padding:12px;
+      border:1px solid var(--stroke);
+      background:var(--panel);
+      border-radius:14px;
+      margin-bottom:14px;
+    }
+    select,input{
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      outline:none;
+    }
+    button{
+      padding:10px 12px;
+      border-radius:12px;
+      border:0;
+      cursor:pointer;
+      background:#1b2333;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.12);
+    }
+    button.primary{background:linear-gradient(180deg,var(--gold),#b8933f); color:#111; font-weight:700}
+    button.bad{border-color:rgba(255,90,95,.4)}
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      overflow:hidden;
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      background:rgba(0,0,0,.18);
+    }
+    thead th{
+      text-align:left;
+      font-size:12px;
+      color:var(--muted);
+      padding:12px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+    }
+    tbody td{
+      padding:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      vertical-align:top;
+      font-size:13px;
+    }
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .pill.ok{border-color:rgba(50,210,150,.35); color:#b7ffdf}
+    .pill.bad{border-color:rgba(255,90,95,.35); color:#ffd0d1}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+    .actions{display:flex; gap:8px; flex-wrap:wrap}
+    a{color:#8bd6ff}
   </style>
 </head>
 <body>
   <h1>Landsky Admin</h1>
-  <div class="muted">Pregled upita i promjena statusa (Basic Auth).</div>
+  <p class="sub">Pregled upita i promjena statusa (Basic Auth).</p>
 
-  <div class="card">
-    <div class="row">
-      <label>
-        Status
-        <select id="status">
-          <option value="">Svi</option>
-          <option value="pending">pending</option>
-          <option value="accepted">accepted</option>
-          <option value="declined">declined</option>
-        </select>
-      </label>
+  <div class="bar">
+    <label style="color:var(--muted); font-size:12px;">Status</label>
+    <select id="status">
+      <option value="">Svi</option>
+      <option value="pending">pending</option>
+      <option value="accepted">accepted</option>
+      <option value="declined">declined</option>
+    </select>
 
-      <label>
-        Pretraga (ime/email)
-        <input id="q" type="text" placeholder="npr. ivo ili gmail.com" />
-      </label>
+    <label style="color:var(--muted); font-size:12px;">Pretraga (ime/email)</label>
+    <input id="q" placeholder="npr. ivo ili gmail.com" />
 
-      <button id="refreshBtn">Osvježi</button>
-      <button id="logoutBtn">Odjava</button>
-    </div>
+    <button class="primary" id="refresh">Osvježi</button>
+    <button class="bad" id="logout">Odjava</button>
 
-    <div id="msg" class="small" style="margin-top:10px;"></div>
-
-    <div style="overflow:auto; max-height: 70vh;">
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Status</th>
-            <th>Mladenci</th>
-            <th>Datum</th>
-            <th>Sala</th>
-            <th>Gosti</th>
-            <th>Kontakt</th>
-            <th>Token link</th>
-            <th>Akcije</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
+    <span id="msg" style="color:var(--muted); font-size:12px;"></span>
   </div>
 
+  <table>
+    <thead>
+      <tr>
+        <th style="width:60px;">ID</th>
+        <th style="width:120px;">Status</th>
+        <th style="width:180px;">Mladenci</th>
+        <th style="width:120px;">Datum</th>
+        <th style="width:220px;">Lokacija</th>
+        <th style="width:90px;">Gosti</th>
+        <th style="width:240px;">Kontakt</th>
+        <th style="width:160px;">Paket</th>
+        <th>Token / link</th>
+        <th style="width:220px;">Akcije</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="10" style="color:var(--muted); padding:18px;">Učitavanje...</td></tr>
+    </tbody>
+  </table>
+
 <script>
-  function setMsg(text, kind="") {
-    const el = document.getElementById("msg");
-    el.className = "small " + (kind === "error" ? "error" : kind === "ok" ? "ok" : "");
-    el.textContent = text || "";
+  const tbody = document.getElementById('tbody');
+  const statusEl = document.getElementById('status');
+  const qEl = document.getElementById('q');
+  const msg = document.getElementById('msg');
+
+  function pill(status){
+    if(status === 'accepted') return `<span class="pill ok">accepted</span>`;
+    if(status === 'declined') return `<span class="pill bad">declined</span>`;
+    return `<span class="pill">pending</span>`;
   }
 
-  function pill(status) {
-    const cls = status === "accepted" ? "accepted" : status === "declined" ? "declined" : "pending";
-    return `<span class="pill ${cls}">${status}</span>`;
+  async function api(path, opts={}){
+    const res = await fetch(path, opts);
+    if(res.status === 401){
+      throw new Error('401 Unauthorized (Basic Auth)');
+    }
+    if(!res.ok){
+      const t = await res.text();
+      throw new Error(t || ('HTTP '+res.status));
+    }
+    return res.json();
   }
 
-  function getAuthHeader() {
-    const raw = localStorage.getItem("admin_basic_auth");
-    if (!raw) return null;
-    return "Basic " + raw;
+  function escapeHtml(s){
+    return (s || '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
 
-  async function ensureAuth() {
-    let raw = localStorage.getItem("admin_basic_auth");
-    if (raw) return;
-
-    const user = prompt("Admin username:");
-    if (user === null) throw new Error("Cancelled");
-    const pass = prompt("Admin password:");
-    if (pass === null) throw new Error("Cancelled");
-
-    raw = btoa(`${user}:${pass}`);
-    localStorage.setItem("admin_basic_auth", raw);
-  }
-
-  async function apiFetch(path, options={}) {
-    const auth = getAuthHeader();
-    if (!auth) throw new Error("Not authenticated");
-
-    const res = await fetch(path, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        "Authorization": auth,
-        "Content-Type": "application/json",
-      }
-    });
-
-    if (res.status === 401) {
-      localStorage.removeItem("admin_basic_auth");
-      throw new Error("Unauthorized (provjeri user/pass)");
+  function render(items){
+    if(!items.length){
+      tbody.innerHTML = `<tr><td colspan="10" style="color:var(--muted); padding:18px;">Nema rezultata.</td></tr>`;
+      return;
     }
 
-    return res;
-  }
-
-  function tokenLinks(token) {
-    const accept = `${location.origin}/accept?token=${encodeURIComponent(token)}`;
-    const decline = `${location.origin}/decline?token=${encodeURIComponent(token)}`;
-    return `
-      <div class="small"><a href="${accept}" target="_blank">accept</a></div>
-      <div class="small"><a href="${decline}" target="_blank">decline</a></div>
-    `;
-  }
-
-  async function loadEvents() {
-    setMsg("Učitavanje...");
-    const status = document.getElementById("status").value;
-    const q = document.getElementById("q").value.trim();
-
-    const params = new URLSearchParams();
-    if (status) params.set("status", status);
-    if (q) params.set("q", q);
-
-    const res = await apiFetch(`/admin/api/events?${params.toString()}`);
-    const data = await res.json();
-    const items = data.items || [];
-
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
-
-    for (const e of items) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${e.id}</td>
-        <td>${pill(e.status)}</td>
-        <td>${e.first_name} ${e.last_name}</td>
-        <td>${e.wedding_date || ""}</td>
-        <td>${e.venue || ""}</td>
-        <td>${e.guest_count ?? ""}</td>
-        <td>
-          <div>${e.email}</div>
-          <div class="muted">${e.phone || ""}</div>
-        </td>
-        <td>${tokenLinks(e.token)}</td>
-        <td>
-          <div class="actions">
-            <button data-action="accept" data-id="${e.id}" ${e.status==="accepted" ? "disabled" : ""}>Accept</button>
-            <button data-action="decline" data-id="${e.id}" ${e.status==="declined" ? "disabled" : ""}>Decline</button>
-            <button data-action="resend" data-id="${e.id}">Resend</button>
-          </div>
-        </td>
+    tbody.innerHTML = items.map(e=>{
+      const fullName = `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}`;
+      const contact = `
+        <div><b>${escapeHtml(e.email)}</b></div>
+        <div style="color:var(--muted);">${escapeHtml(e.phone)}</div>
+        <div style="margin-top:8px; color:var(--muted);"><b>Napomena:</b><br>${escapeHtml(e.message || '').slice(0,180)}${(e.message||'').length>180?'…':''}</div>
       `;
-      tbody.appendChild(tr);
-    }
+      const tokenLink = `<div class="mono">${escapeHtml(e.token)}</div>
+        <div><a href="/offer-preview?token=${encodeURIComponent(e.token)}" target="_blank">Preview</a></div>
+      `;
 
-    // bind actions
-    tbody.querySelectorAll("button[data-action]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-id");
-        const action = btn.getAttribute("data-action");
-        if (!id || !action) return;
+      const pkg = escapeHtml(e.selected_package || '');
+      const pkgText = pkg ? `<span class="pill">${pkg}</span>` : `<span class="pill" style="opacity:.7">—</span>`;
 
-        const label = action.toUpperCase();
-        if (!confirm(`Sigurno? ${label} event #${id}`)) return;
-
-        try {
-          setMsg("Šaljem...");
-          const r = await apiFetch(`/admin/api/events/${id}/${action}`, { method: "POST", body: "{}" });
-          await r.json();
-          setMsg("OK", "ok");
-          await loadEvents();
-        } catch (err) {
-          setMsg(String(err), "error");
-        }
-      });
-    });
-
-    setMsg(`Učitano: ${items.length}`, "ok");
+      return `
+        <tr>
+          <td>${e.id}</td>
+          <td>${pill(e.status)}</td>
+          <td>${fullName}</td>
+          <td>${escapeHtml(e.wedding_date)}</td>
+          <td>${escapeHtml(e.venue)}</td>
+          <td>${e.guest_count}</td>
+          <td>${contact}</td>
+          <td>${pkgText}</td>
+          <td>${tokenLink}</td>
+          <td>
+            <div class="actions">
+              <button onclick="acceptEvent(${e.id})">Accept</button>
+              <button onclick="declineEvent(${e.id})">Decline</button>
+              <button onclick="resend(${e.id})">Resend</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
-  document.getElementById("refreshBtn").addEventListener("click", () => loadEvents());
-  document.getElementById("logoutBtn").addEventListener("click", () => {
-    localStorage.removeItem("admin_basic_auth");
-    location.reload();
+  async function load(){
+    msg.textContent = 'Učitavanje...';
+    const s = statusEl.value;
+    const q = qEl.value.trim();
+    const url = new URL('/admin/api/events', location.origin);
+    if(s) url.searchParams.set('status', s);
+    if(q) url.searchParams.set('q', q);
+
+    try{
+      const data = await api(url.toString());
+      render(data.items || []);
+      msg.textContent = `Učitano: ${(data.items||[]).length}`;
+    }catch(err){
+      tbody.innerHTML = `<tr><td colspan="10" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
+      msg.textContent = '';
+    }
+  }
+
+  async function acceptEvent(id){
+    if(!confirm('Accept (admin) ?')) return;
+    try{
+      await api(`/admin/api/events/${id}/accept`, {method:'POST'});
+      await load();
+    }catch(err){ alert(err); }
+  }
+
+  async function declineEvent(id){
+    if(!confirm('Decline (admin) ?')) return;
+    try{
+      await api(`/admin/api/events/${id}/decline`, {method:'POST'});
+      await load();
+    }catch(err){ alert(err); }
+  }
+
+  async function resend(id){
+    if(!confirm('Resend offer email?')) return;
+    try{
+      await api(`/admin/api/events/${id}/resend`, {method:'POST'});
+      await load();
+      alert('Resend OK');
+    }catch(err){ alert(err); }
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('logout').addEventListener('click', ()=>{
+    // trigger basic-auth "logout" (browser-dependent)
+    fetch('/admin/api/events', {headers:{'Authorization':'Basic logout'}}).finally(()=>location.reload());
   });
 
-  (async () => {
-    try {
-      await ensureAuth();
-      await loadEvents();
-    } catch (e) {
-      setMsg(String(e), "error");
-    }
-  })();
+  window.acceptEvent = acceptEvent;
+  window.declineEvent = declineEvent;
+  window.resend = resend;
+
+  load();
 </script>
 </body>
 </html>
