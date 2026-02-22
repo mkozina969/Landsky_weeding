@@ -3,41 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Landsky Admin – Wedding Events</title>
+  <title>Landsky Admin</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
-    h1 { margin-bottom: 8px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
-    label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+    h1 { margin: 0 0 6px 0; }
+    .muted { color:#666; font-size: 13px; }
+    .card { border:1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    label { display:flex; flex-direction: column; gap: 6px; font-size: 14px; }
     input, select, button { padding: 8px; font-size: 14px; }
-    button { cursor: pointer; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin: 14px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; vertical-align: top; }
-    th { background: #fafafa; position: sticky; top: 0; }
-    .pill { padding: 3px 8px; border-radius: 999px; font-size: 12px; display: inline-block; }
+    button { cursor:pointer; }
+    table { width:100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom:1px solid #eee; padding:10px; text-align:left; vertical-align: top; }
+    th { background:#fafafa; position: sticky; top: 0; }
+    .pill { padding: 3px 8px; border-radius: 999px; font-size: 12px; display:inline-block; }
     .pending { background:#fff3cd; }
     .accepted { background:#d1e7dd; }
     .declined { background:#f8d7da; }
-    .actions { display: flex; gap: 8px; }
-    .muted { color: #666; font-size: 13px; }
-    .error { color: #b00020; }
-    .ok { color: #0a7b34; }
-    .topbar { display:flex; gap: 10px; align-items:center; justify-content: space-between; }
-    .right { display:flex; gap: 10px; align-items:center; }
-    .small { font-size: 12px; }
+    .actions { display:flex; gap:8px; }
+    .error { color:#b00020; }
+    .ok { color:#0a7b34; }
+    .small { font-size:12px; }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <div>
-      <h1>Landsky Admin</h1>
-      <div class="muted">Pregled upita / eventa. (Basic Auth)</div>
-    </div>
-    <div class="right">
-      <button id="logoutBtn">Odjava</button>
-    </div>
-  </div>
+  <h1>Landsky Admin</h1>
+  <div class="muted">Pregled upita i promjena statusa (Basic Auth).</div>
 
   <div class="card">
     <div class="row">
@@ -52,42 +43,48 @@
       </label>
 
       <label>
-        Od datuma
-        <input type="date" id="date_from" />
-      </label>
-
-      <label>
-        Do datuma
-        <input type="date" id="date_to" />
+        Pretraga (ime/email)
+        <input id="q" type="text" placeholder="npr. ivo ili gmail.com" />
       </label>
 
       <button id="refreshBtn">Osvježi</button>
-      <button id="exportBtn">Export CSV</button>
+      <button id="logoutBtn">Odjava</button>
     </div>
 
     <div id="msg" class="small" style="margin-top:10px;"></div>
 
     <div style="overflow:auto; max-height: 70vh;">
-      <table id="table">
+      <table>
         <thead>
           <tr>
             <th>ID</th>
             <th>Status</th>
-            <th>Datum</th>
             <th>Mladenci</th>
+            <th>Datum</th>
             <th>Sala</th>
             <th>Gosti</th>
             <th>Kontakt</th>
+            <th>Token link</th>
             <th>Akcije</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody id="tbody"></tbody>
       </table>
     </div>
   </div>
 
 <script>
-  // --- Basic Auth helper ---
+  function setMsg(text, kind="") {
+    const el = document.getElementById("msg");
+    el.className = "small " + (kind === "error" ? "error" : kind === "ok" ? "ok" : "");
+    el.textContent = text || "";
+  }
+
+  function pill(status) {
+    const cls = status === "accepted" ? "accepted" : status === "declined" ? "declined" : "pending";
+    return `<span class="pill ${cls}">${status}</span>`;
+  }
+
   function getAuthHeader() {
     const raw = localStorage.getItem("admin_basic_auth");
     if (!raw) return null;
@@ -107,40 +104,6 @@
     localStorage.setItem("admin_basic_auth", raw);
   }
 
-  function setMsg(text, kind="") {
-    const el = document.getElementById("msg");
-    el.className = "small " + (kind === "error" ? "error" : kind === "ok" ? "ok" : "");
-    el.textContent = text || "";
-  }
-
-  function pill(status) {
-    const cls = status === "accepted" ? "accepted" : status === "declined" ? "declined" : "pending";
-    return `<span class="pill ${cls}">${status}</span>`;
-  }
-
-  function csvEscape(v) {
-    if (v === null || v === undefined) return "";
-    const s = String(v).replace(/"/g, '""');
-    return `"${s}"`;
-  }
-
-  function downloadCSV(rows) {
-    const headers = ["id","status","wedding_date","first_name","last_name","venue","guest_count","email","phone","created_at","accepted_at","declined_at"];
-    const lines = [headers.join(",")];
-    for (const r of rows) {
-      lines.push(headers.map(h => csvEscape(r[h])).join(","));
-    }
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "landsky_events.csv";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
   async function apiFetch(path, options={}) {
     const auth = getAuthHeader();
     if (!auth) throw new Error("Not authenticated");
@@ -158,41 +121,49 @@
       localStorage.removeItem("admin_basic_auth");
       throw new Error("Unauthorized (provjeri user/pass)");
     }
+
     return res;
   }
 
+  function tokenLinks(token) {
+    const accept = `${location.origin}/accept?token=${encodeURIComponent(token)}`;
+    const decline = `${location.origin}/decline?token=${encodeURIComponent(token)}`;
+    return `
+      <div class="small"><a href="${accept}" target="_blank">accept</a></div>
+      <div class="small"><a href="${decline}" target="_blank">decline</a></div>
+    `;
+  }
+
   async function loadEvents() {
-    setMsg("Učitavanje...", "");
+    setMsg("Učitavanje...");
     const status = document.getElementById("status").value;
-    const date_from = document.getElementById("date_from").value;
-    const date_to = document.getElementById("date_to").value;
+    const q = document.getElementById("q").value.trim();
 
     const params = new URLSearchParams();
     if (status) params.set("status", status);
-    if (date_from) params.set("date_from", date_from);
-    if (date_to) params.set("date_to", date_to);
+    if (q) params.set("q", q);
 
-    const res = await apiFetch(`/admin/events?${params.toString()}`);
+    const res = await apiFetch(`/admin/api/events?${params.toString()}`);
     const data = await res.json();
+    const items = data.items || [];
 
-    const tbody = document.querySelector("#table tbody");
+    const tbody = document.getElementById("tbody");
     tbody.innerHTML = "";
 
-    const items = data.items || [];
     for (const e of items) {
       const tr = document.createElement("tr");
-
       tr.innerHTML = `
         <td>${e.id}</td>
         <td>${pill(e.status)}</td>
-        <td>${e.wedding_date}</td>
         <td>${e.first_name} ${e.last_name}</td>
+        <td>${e.wedding_date || ""}</td>
         <td>${e.venue || ""}</td>
         <td>${e.guest_count ?? ""}</td>
         <td>
           <div>${e.email}</div>
           <div class="muted">${e.phone || ""}</div>
         </td>
+        <td>${tokenLinks(e.token)}</td>
         <td>
           <div class="actions">
             <button data-action="accept" data-id="${e.id}" ${e.status==="accepted" ? "disabled" : ""}>Accept</button>
@@ -203,23 +174,20 @@
       tbody.appendChild(tr);
     }
 
-    setMsg(`Učitano: ${items.length}`, "ok");
-
-    // bind buttons
+    // bind actions
     tbody.querySelectorAll("button[data-action]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-id");
         const action = btn.getAttribute("data-action");
         if (!id || !action) return;
 
-        const ok = confirm(`Sigurno? ${action.toUpperCase()} event #${id}`);
-        if (!ok) return;
+        if (!confirm(`Sigurno? ${action.toUpperCase()} event #${id}`)) return;
 
         try {
-          setMsg("Slanje...", "");
-          const res = await apiFetch(`/admin/events/${id}/${action}`, { method: "POST", body: "{}" });
-          const out = await res.json();
-          setMsg(`OK: ${action} #${id}`, "ok");
+          setMsg("Šaljem...");
+          const r = await apiFetch(`/admin/api/events/${id}/${action}`, { method: "POST", body: "{}" });
+          await r.json();
+          setMsg("OK", "ok");
           await loadEvents();
         } catch (err) {
           setMsg(String(err), "error");
@@ -227,24 +195,15 @@
       });
     });
 
-    // store for CSV export
-    window.__lastItems = items;
+    setMsg(`Učitano: ${items.length}`, "ok");
   }
 
-  document.getElementById("refreshBtn").addEventListener("click", async () => {
-    try { await loadEvents(); } catch (e) { setMsg(String(e), "error"); }
-  });
-
-  document.getElementById("exportBtn").addEventListener("click", () => {
-    downloadCSV(window.__lastItems || []);
-  });
-
+  document.getElementById("refreshBtn").addEventListener("click", () => loadEvents());
   document.getElementById("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("admin_basic_auth");
     location.reload();
   });
 
-  // init
   (async () => {
     try {
       await ensureAuth();
