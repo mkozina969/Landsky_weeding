@@ -3,29 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Landsky Catering – Landsky Cocktail Catering</title>
+  <title>Landsky Cocktail Catering</title>
+
+  <link rel="icon" href="./favicon.ico" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 
   <style>
     :root{
       --bg1:#0b0f14;
       --bg2:#111827;
 
-      /* glass + borders */
       --stroke: rgba(255,255,255,.16);
       --stroke2: rgba(255,255,255,.22);
 
-      /* text */
       --text:#e5e7eb;
       --muted:#9ca3af;
 
-      /* brand */
       --accent:#f5c451;
       --accent2:#f59e0b;
 
-      /* fields */
       --field: rgba(0,0,0,.26);
 
-      /* effects */
       --shadow: 0 26px 70px rgba(0,0,0,.55);
       --radius: 22px;
     }
@@ -43,16 +41,13 @@
       padding:34px 18px;
 
       background:
-        radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.20), transparent 55%),
+        radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.22), transparent 55%),
         radial-gradient(900px 600px at 80% 0%, rgba(59,130,246,.14), transparent 55%),
         linear-gradient(120deg, var(--bg1), var(--bg2));
     }
 
     .wrap{width:min(1040px, 100%);}
 
-    /* =========================
-       HERO
-       ========================= */
     .hero{
       position:relative;
       display:grid;
@@ -71,7 +66,6 @@
       backdrop-filter: blur(18px);
     }
 
-    /* premium glow overlay */
     .panel::before{
       content:"";
       position:absolute;
@@ -84,13 +78,8 @@
       opacity:1;
     }
 
-    /* make hero lighter (mobile issue fix) */
     .brand{
-      background: linear-gradient(
-        135deg,
-        rgba(255,255,255,.10),
-        rgba(255,255,255,.045)
-      );
+      background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.045));
       padding:18px 18px 16px 18px;
       min-height: 170px;
     }
@@ -103,27 +92,42 @@
     }
 
     .logo{
-      width:128px;
-      height:128px;
+      position:relative;
+      width:132px;
+      height:132px;
       border-radius:24px;
       background:#ffffff;
-      border:1px solid var(--stroke2);
+      border:1px solid rgba(255,255,255,.35);
       display:flex;
       align-items:center;
       justify-content:center;
       padding:18px;
       flex:0 0 auto;
-      box-shadow: 0 14px 38px rgba(0,0,0,.42);
+      box-shadow:
+        0 10px 30px rgba(0,0,0,.45),
+        0 0 0 1px rgba(255,255,255,.15) inset;
+    }
+    .logo::after{
+      content:"";
+      position:absolute;
+      inset:-8px;
+      border-radius:28px;
+      background: radial-gradient(circle, rgba(245,196,81,.25), transparent 60%);
+      filter: blur(12px);
+      z-index:-1;
     }
 
-    /* logo is already white PNG now -> NO invert filter */
     .logo img{
-      width:112px;
+      width:114px;
       height:auto;
+      max-width:100%;
+      display:block;
+      opacity:.98;
     }
+
     h1{
       font-size: clamp(22px, 2.8vw, 34px);
-      margin:0 0 6px 0;
+      margin:0 0 8px 0;
       letter-spacing:.2px;
     }
     .sub{
@@ -131,7 +135,7 @@
       margin:0;
       line-height:1.45;
       font-size: 13.5px;
-      max-width: 58ch;
+      max-width: 62ch;
     }
 
     .meta{
@@ -171,11 +175,7 @@
     .adminlink a:hover{text-decoration:underline}
 
     .side{
-      background: linear-gradient(
-        135deg,
-        rgba(255,255,255,.08),
-        rgba(255,255,255,.03)
-      );
+      background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
       padding:18px;
       display:flex;
       flex-direction:column;
@@ -183,35 +183,13 @@
       gap:10px;
     }
 
-    .side h2{
-      margin:0;
-      font-size:16px;
-      letter-spacing:.2px;
-    }
-    .side p{
-      margin:0;
-      color:rgba(229,231,235,.78);
-      font-size:13px;
-      line-height:1.45;
-    }
-    .side ul{
-      margin:6px 0 0 0;
-      padding-left:18px;
-      color: rgba(229,231,235,.92);
-      font-size:13px;
-      line-height:1.5;
-    }
+    .side h2{ margin:0; font-size:16px; letter-spacing:.2px; }
+    .side p{ margin:0; color:rgba(229,231,235,.78); font-size:13px; line-height:1.45; }
+    .side ul{ margin:6px 0 0 0; padding-left:18px; color: rgba(229,231,235,.92); font-size:13px; line-height:1.5; }
     .side li{margin:4px 0}
 
-    /* =========================
-       FORM CARD (slightly lighter glass)
-       ========================= */
     .card{
-      background: linear-gradient(
-        135deg,
-        rgba(255,255,255,.08),
-        rgba(255,255,255,.035)
-      );
+      background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.035));
       border: 1px solid rgba(255,255,255,.18);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
@@ -220,18 +198,9 @@
       overflow:hidden;
     }
 
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px 16px;
-    }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px 16px; }
 
-    label{
-      display:block;
-      font-size:12.5px;
-      color:rgba(229,231,235,.72);
-      margin:2px 0 6px;
-    }
+    label{ display:block; font-size:12.5px; color:rgba(229,231,235,.72); margin:2px 0 6px; }
 
     input, textarea{
       width:100%;
@@ -243,24 +212,13 @@
       outline:none;
       transition: border-color .15s ease, box-shadow .15s ease, transform .05s ease;
     }
-
     input::placeholder, textarea::placeholder{color: rgba(229,231,235,.35);}
-
-    input:focus, textarea:focus{
-      border-color: rgba(245,196,81,.55);
-      box-shadow: 0 0 0 4px rgba(245,196,81,.12);
-    }
+    input:focus, textarea:focus{ border-color: rgba(245,196,81,.55); box-shadow: 0 0 0 4px rgba(245,196,81,.12); }
 
     textarea{min-height:110px; resize:vertical}
     .span2{grid-column: 1 / -1;}
 
-    .actions{
-      display:flex;
-      gap:12px;
-      align-items:center;
-      margin-top:14px;
-      flex-wrap:wrap;
-    }
+    .actions{ display:flex; gap:12px; align-items:center; margin-top:14px; flex-wrap:wrap; }
 
     button{
       appearance:none;
@@ -278,23 +236,52 @@
     button:hover{filter:brightness(1.04)}
     button:active{transform: translateY(1px)}
 
+    .btn-secondary{
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:none;
+      font-weight:700;
+    }
+    .btn-secondary:hover{filter:brightness(1.08)}
+
     .hint{color:rgba(229,231,235,.68); font-size:13px; line-height:1.4}
 
-    .msg{
-      margin-top:14px;
-      border-radius: 14px;
-      border:1px solid rgba(255,255,255,.14);
-      padding:14px;
-      background: rgba(0,0,0,.22);
-      display:none;
-    }
+    .msg{ margin-top:14px; border-radius: 14px; border:1px solid rgba(255,255,255,.14); padding:14px; background: rgba(0,0,0,.22); display:none; }
     .msg.ok{border-color: rgba(34,197,94,.35)}
     .msg.err{border-color: rgba(239,68,68,.35)}
     .msg a{color:#93c5fd}
 
-    /* =========================
-       MOBILE TUNING
-       ========================= */
+    /* Success modal */
+    .modal-backdrop{
+      position:fixed; inset:0; background: rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:18px; z-index:50;
+    }
+    .modal{
+      width:min(720px, 100%);
+      border-radius: 22px;
+      border:1px solid rgba(255,255,255,.18);
+      background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px);
+      overflow:hidden;
+    }
+    .modal-header{
+      display:flex; gap:12px; align-items:center;
+      padding:16px 16px 12px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+    }
+    .modal-logo{
+      width:48px;height:48px;border-radius:14px;
+      background:#fff; display:flex; align-items:center; justify-content:center;
+      padding:8px; border:1px solid rgba(255,255,255,.25); flex:0 0 auto;
+    }
+    .modal-logo img{width:36px;height:auto;display:block}
+    .modal-title{margin:0;font-size:16px}
+    .modal-body{padding:14px 16px 16px;color:rgba(229,231,235,.86);font-size:13.5px;line-height:1.45}
+    .modal-actions{display:flex;gap:10px;flex-wrap:wrap;padding:0 16px 16px}
+
     @media (max-width: 920px){
       .hero{grid-template-columns: 1fr;}
       .adminlink{margin-left:0}
@@ -304,26 +291,17 @@
 
     @media (max-width: 520px){
       body{padding:22px 14px}
-      .logo{
-        width:110px;
-        height:110px;
-        padding:16px;
-      }
-      .logo img{width:96px}
+      .logo{width:116px;height:116px;padding:16px}
+      .logo img{width:100px}
       .brand{padding:16px}
       .side{padding:16px}
       .card{padding:16px}
       .grid{grid-template-columns: 1fr;}
     }
 
-    /* subtle fade-in */
-    .panel, .card{
-      animation: fadeUp .35s ease both;
-    }
-    @keyframes fadeUp{
-      from{opacity:0; transform: translateY(8px);}
-      to{opacity:1; transform: translateY(0);}
-    }
+    .panel, .card{ animation: fadeUp .35s ease both; }
+    @keyframes fadeUp{ from{opacity:0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
+    @media (prefers-reduced-motion: reduce){ .panel, .card{animation:none} }
   </style>
 </head>
 
@@ -334,16 +312,12 @@
       <div class="panel brand">
         <div class="brand-inner">
           <div class="logo" aria-hidden="true">
-            <!-- Put your new PNG here as: frontend/logo.png -->
             <img src="./logo.png" alt="Landsky logo" />
           </div>
 
           <div style="min-width:0; position:relative;">
             <h1>Landsky Cocktail Catering</h1>
-            <p class="sub">
-              Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit.
-              Odgovorit ćemo s ponudom i detaljima.
-            </p>
+            <p class="sub">Premium cocktail catering za vjenčanja i posebne evente.</p>
 
             <div class="meta">
               <span class="chip"><span class="dot"></span> Brzi odgovor</span>
@@ -371,12 +345,12 @@
         <div class="grid">
           <div>
             <label for="first_name">Ime</label>
-            <input id="first_name" required placeholder="npr. Ivan" />
+            <input id="first_name" required placeholder="npr. Mario" />
           </div>
 
           <div>
             <label for="last_name">Prezime</label>
-            <input id="last_name" required placeholder="npr. Landsky" />
+            <input id="last_name" required placeholder="npr. Kozina" />
           </div>
 
           <div>
@@ -386,7 +360,7 @@
 
           <div>
             <label for="venue">Lokacija / Sala</label>
-            <input id="venue" required placeholder="npr. Zagreb Westin" />
+            <input id="venue" required placeholder="npr. Sala Korana" />
           </div>
 
           <div>
@@ -396,7 +370,7 @@
 
           <div>
             <label for="email">E-mail</label>
-            <input id="email" type="email" required placeholder="npr. ilandsky@email.com" />
+            <input id="email" type="email" required placeholder="npr. mladenci@email.com" />
           </div>
 
           <div class="span2">
@@ -406,7 +380,7 @@
 
           <div class="span2">
             <label for="message">Napomena / Pitanja (opcionalno)</label>
-            <textarea id="message" placeholder="Npr. bezalkoholni kokteli, posebne želje..."></textarea>
+            <textarea id="message" placeholder="Npr. bezalkoholni bar, okvirna cijena, posebne želje..."></textarea>
           </div>
         </div>
 
@@ -420,15 +394,58 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <div class="modal-logo" aria-hidden="true"><img src="./logo.png" alt="" /></div>
+        <div>
+          <div class="modal-title" id="modalTitle"><b>Upit je zaprimljen</b></div>
+          <div style="color:rgba(229,231,235,.7);font-size:12px">Landsky Cocktail Catering</div>
+        </div>
+      </div>
+      <div class="modal-body" id="modalBody">
+        Hvala! Javit ćemo vam se uskoro s ponudom i detaljima.
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="modalClose" type="button">Zatvori</button>
+        <button id="modalPreviewBtn" type="button" style="display:none">Otvori preview</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const form = document.getElementById('f');
     const msg = document.getElementById('msg');
 
-    function show(type, html){
+    const modal = document.getElementById('modal');
+    const modalClose = document.getElementById('modalClose');
+    const modalBody = document.getElementById('modalBody');
+    const modalPreviewBtn = document.getElementById('modalPreviewBtn');
+
+    function showInline(type, html){
       msg.className = 'msg ' + type;
       msg.innerHTML = html;
       msg.style.display = 'block';
     }
+
+    function openModal(text, previewUrl){
+      modalBody.innerHTML = text;
+      if(previewUrl){
+        modalPreviewBtn.style.display = 'inline-block';
+        modalPreviewBtn.onclick = () => window.open(previewUrl, '_blank', 'noopener');
+      }else{
+        modalPreviewBtn.style.display = 'none';
+        modalPreviewBtn.onclick = null;
+      }
+      modal.style.display = 'flex';
+      modalClose.focus();
+    }
+
+    function closeModal(){ modal.style.display = 'none'; }
+
+    modal.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+    modalClose.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && modal.style.display === 'flex') closeModal(); });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -454,18 +471,25 @@
 
         const data = await res.json().catch(()=> ({}));
         if(!res.ok){
-          show('err', '<b>Greška:</b> ' + (data?.detail?.[0]?.msg || data?.detail || 'Neuspješno slanje.'));
+          showInline('err', '<b>Greška:</b> ' + (data?.detail?.[0]?.msg || data?.detail || 'Neuspješno slanje.'));
           return;
         }
 
-        let extra = '';
-        if(data.preview_url){
-          extra = '<br><br><b>TEST preview:</b><br><a href="'+data.preview_url+'" target="_blank" rel="noopener">'+data.preview_url+'</a>';
+        const preview = data.preview_url || null;
+        const text = '<b>Hvala!</b> Vaš upit je zaprimljen.<br>Javit ćemo vam se uskoro s ponudom i detaljima.'
+          + (preview ? '<br><br><span style="color:rgba(229,231,235,.75)">TEST mode: možete otvoriti preview ponude.</span>' : '');
+
+        openModal(text, preview);
+
+        if(preview){
+          showInline('ok', '<b>Upit je zaprimljen.</b><br><br><b>TEST preview:</b><br><a href="'+preview+'" target="_blank" rel="noopener">'+preview+'</a>');
+        }else{
+          showInline('ok', '<b>Upit je zaprimljen.</b>');
         }
-        show('ok', '<b>Vaš upit je zaprimljen.</b>' + extra);
+
         form.reset();
       }catch(err){
-        show('err', '<b>Greška:</b> ' + String(err));
+        showInline('err', '<b>Greška:</b> ' + String(err));
       }
     });
   </script>
