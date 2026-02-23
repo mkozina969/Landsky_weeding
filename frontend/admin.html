@@ -157,9 +157,7 @@
 
   async function apiJson(path, opts={}){
     const res = await fetch(path, opts);
-    if(res.status === 401){
-      throw new Error('401 Unauthorized (Basic Auth)');
-    }
+    if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
     if(!res.ok){
       const t = await res.text();
       throw new Error(t || ('HTTP '+res.status));
@@ -169,9 +167,7 @@
 
   async function apiNoJson(path, opts={}){
     const res = await fetch(path, opts);
-    if(res.status === 401){
-      throw new Error('401 Unauthorized (Basic Auth)');
-    }
+    if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
     if(!res.ok){
       const t = await res.text();
       throw new Error(t || ('HTTP '+res.status));
@@ -183,7 +179,6 @@
       tbody.innerHTML = `<tr><td colspan="10" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
       return;
     }
-
     tbody.innerHTML = items.map(e => {
       const fullName = `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}`;
       const contact = `
@@ -193,16 +188,13 @@
           <b>Napomena:</b><br>${escapeHtml((e.message || '')).slice(0,180)}${(e.message||'').length>180?'…':''}
         </div>
       `;
-
       const pkg = (e.selected_package || '').trim();
       const pkgHtml = pkg ? `<span class="pill">${escapeHtml(pkg)}</span>` : `<span class="pill" style="opacity:.7">—</span>`;
-
       const token = e.token || '';
       const tokenLink = `
         <div class="mono">${escapeHtml(token)}</div>
         <div class="nowrap"><a href="/offer-preview?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Preview</a></div>
       `;
-
       return `
         <tr>
           <td>${e.id}</td>
@@ -229,7 +221,6 @@
 
   async function load(){
     msgEl.textContent = 'Učitavanje...';
-
     const s = statusEl.value;
     const q = (qEl.value || '').trim();
     const url = new URL('/admin/api/events', location.origin);
@@ -249,51 +240,33 @@
 
   async function setStatus(id, status){
     if(!confirm(`Postavi status "${status}" za ID ${id}?`)) return;
-    try{
-      await apiJson(`/admin/api/events/${id}/status`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({status})
-      });
-      await load();
-    }catch(err){
-      alert(String(err));
-    }
+    await apiJson(`/admin/api/events/${id}/status`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({status})
+    });
+    await load();
   }
 
-  // OLD endpoints support (accept/decline)
   async function acceptEvent(id){
     if(!confirm(`Accept za ID ${id}?`)) return;
-    try{
-      await apiJson(`/admin/api/events/${id}/accept`, { method:'POST' });
-      await load();
-    }catch(err){
-      alert(String(err));
-    }
+    await apiJson(`/admin/api/events/${id}/accept`, { method:'POST' });
+    await load();
   }
 
   async function declineEvent(id){
     if(!confirm(`Decline za ID ${id}?`)) return;
-    try{
-      await apiJson(`/admin/api/events/${id}/decline`, { method:'POST' });
-      await load();
-    }catch(err){
-      alert(String(err));
-    }
+    await apiJson(`/admin/api/events/${id}/decline`, { method:'POST' });
+    await load();
   }
 
   async function resendOffer(id){
     if(!confirm('Resend offer email?')) return;
-    try{
-      await apiJson(`/admin/api/events/${id}/resend`, { method:'POST' });
-      await load();
-      alert('Resend OK');
-    }catch(err){
-      alert(String(err));
-    }
+    await apiJson(`/admin/api/events/${id}/resend`, { method:'POST' });
+    await load();
+    alert('Resend OK');
   }
 
-  // Expose for inline onclick
   window.setStatus = setStatus;
   window.acceptEvent = acceptEvent;
   window.declineEvent = declineEvent;
