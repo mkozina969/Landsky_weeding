@@ -103,23 +103,23 @@
     }
 
     .logo{
-      width:128px;
-      height:128px;
-      border-radius:24px;
-      background:#ffffff;
-      border:1px solid var(--stroke2);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:18px;
-      flex:0 0 auto;
-      box-shadow: 0 14px 38px rgba(0,0,0,.42);
-    }
+  width:128px;
+  height:128px;
+  border-radius:24px;
 
-    /* logo is already white PNG now -> NO invert filter */
-    .logo img{
-      width:112px;
-      height:auto;
+  /* FULL WHITE */
+  background:#ffffff;
+
+  border:1px solid rgba(255,255,255,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+
+  /* soft shadow so it blends */
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.15) inset;
     }
     h1{
       font-size: clamp(22px, 2.8vw, 34px);
