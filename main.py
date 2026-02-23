@@ -275,16 +275,18 @@ def render_offer_html(e: Event) -> str:
         )
 
     # Default (built-in) offer email
-    logo_url = f"{BASE_URL}/frontend/assets/logo.png" if os.path.exists(os.path.join("frontend","assets","logo.png")) else f"{BASE_URL}/frontend/logo.png"
+    # Prefer /frontend/assets/logo.png if you use that path
+    logo_url = f"{BASE_URL}/frontend/assets/logo.png"
     cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
     bar_img = f"{BASE_URL}/frontend/bar.jpeg"
     cigare_img = f"{BASE_URL}/frontend/cigare.png"
+
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
 
     msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("
-", "<br>") if msg else "(nema)"
+    # IMPORTANT: keep \n as an escaped sequence (this was causing your SyntaxError before)
+    msg_html = html.escape(msg).replace("\n", "<br>") if msg else "(nema)"
 
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
@@ -393,7 +395,7 @@ def internal_email_body(e: Event) -> str:
     preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
     admin_link = f"{BASE_URL}/admin"
     msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
+    msg_html = html.escape(msg).replace("\n", "<br>") if msg else "(nema)"
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <h2>Novi upit</h2>
@@ -569,7 +571,9 @@ def accept_get(
 
     if e.status == "accepted":
         chosen = PACKAGE_LABELS.get((e.selected_package or "").lower(), e.selected_package or "—")
-        return HTMLResponse(f"<h3>Ponuda je već prihvaćena.</h3><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>")
+        return HTMLResponse(
+            f"<h3>Ponuda je već prihvaćena.</h3><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>"
+        )
 
     if e.status == "declined":
         return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
@@ -613,7 +617,10 @@ def accept_get(
 
     package_key = package.strip().lower()
     if package_key not in PACKAGE_LABELS:
-        return HTMLResponse("<h3>Neispravan paket. Molimo odaberite Classic/Premium/Signature.</h3>", status_code=400)
+        return HTMLResponse(
+            "<h3>Neispravan paket. Molimo odaberite Classic/Premium/Signature.</h3>",
+            status_code=400,
+        )
 
     e.accepted = True
     e.status = "accepted"
@@ -622,7 +629,9 @@ def accept_get(
     db.commit()
 
     chosen = PACKAGE_LABELS[package_key]
-    return HTMLResponse(f"<h2>Ponuda prihvaćena ✅</h2><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>")
+    return HTMLResponse(
+        f"<h2>Ponuda prihvaćena ✅</h2><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>"
+    )
 
 
 @app.get("/decline", response_class=HTMLResponse)
@@ -727,7 +736,6 @@ def admin_events(
     _require_admin(request)
 
     query = db.query(Event)
-
     if status:
         query = query.filter(Event.status == status)
 
@@ -793,7 +801,7 @@ def admin_set_status(
     return {"ok": True}
 
 
-# OLD endpoints
+# OLD endpoints (compat with old admin.html)
 @app.post("/admin/api/events/{event_id}/accept")
 def admin_accept_event(
     event_id: int,
