@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Landsky Catering – Upit za vjenčanje</title>
+  <title>Landsky Catering – Cocktail catering</title>
 
   <style>
     :root{
@@ -103,23 +103,23 @@
     }
 
     .logo{
-  width:128px;
-  height:128px;
-  border-radius:24px;
+      width:128px;
+      height:128px;
+      border-radius:24px;
+      background:#ffffff;
+      border:1px solid var(--stroke2);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      flex:0 0 auto;
+      box-shadow: 0 14px 38px rgba(0,0,0,.42);
+    }
 
-  /* FULL WHITE */
-  background:#ffffff;
-
-  border:1px solid rgba(255,255,255,.35);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:18px;
-
-  /* soft shadow so it blends */
-  box-shadow:
-    0 10px 30px rgba(0,0,0,.45),
-    0 0 0 1px rgba(255,255,255,.15) inset;
+    /* logo is already white PNG now -> NO invert filter */
+    .logo img{
+      width:112px;
+      height:auto;
     }
     h1{
       font-size: clamp(22px, 2.8vw, 34px);
@@ -371,12 +371,12 @@
         <div class="grid">
           <div>
             <label for="first_name">Ime</label>
-            <input id="first_name" required placeholder="npr. Mario" />
+            <input id="first_name" required placeholder="npr. Ivan" />
           </div>
 
           <div>
             <label for="last_name">Prezime</label>
-            <input id="last_name" required placeholder="npr. Kozina" />
+            <input id="last_name" required placeholder="npr. Landsky" />
           </div>
 
           <div>
@@ -386,7 +386,7 @@
 
           <div>
             <label for="venue">Lokacija / Sala</label>
-            <input id="venue" required placeholder="npr. Sala Korana" />
+            <input id="venue" required placeholder="npr. Zagreb Westin" />
           </div>
 
           <div>
@@ -396,7 +396,7 @@
 
           <div>
             <label for="email">E-mail</label>
-            <input id="email" type="email" required placeholder="npr. mladenci@email.com" />
+            <input id="email" type="email" required placeholder="npr. ilandsky@email.com" />
           </div>
 
           <div class="span2">
@@ -406,7 +406,7 @@
 
           <div class="span2">
             <label for="message">Napomena / Pitanja (opcionalno)</label>
-            <textarea id="message" placeholder="Npr. bezalkoholni bar, okvirna cijena, posebne želje..."></textarea>
+            <textarea id="message" placeholder="Npr. bezalkoholni kokteli, posebne želje..."></textarea>
           </div>
         </div>
 
