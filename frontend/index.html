@@ -4,116 +4,158 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Landsky Catering – Upit za vjenčanje</title>
+
   <style>
     :root{
       --bg1:#0b0f14;
       --bg2:#111827;
-      --card: rgba(17,24,39,.62);
-      --stroke: rgba(255,255,255,.12);
+
+      /* glass + borders */
+      --stroke: rgba(255,255,255,.16);
+      --stroke2: rgba(255,255,255,.22);
+
+      /* text */
       --text:#e5e7eb;
       --muted:#9ca3af;
+
+      /* brand */
       --accent:#f5c451;
       --accent2:#f59e0b;
-      --ok:#22c55e;
-      --err:#ef4444;
+
+      /* fields */
+      --field: rgba(0,0,0,.26);
+
+      /* effects */
       --shadow: 0 26px 70px rgba(0,0,0,.55);
-      --radius:18px;
-      --field: rgba(0,0,0,.28);
+      --radius: 22px;
     }
+
     *{box-sizing:border-box}
+
     body{
       margin:0;
       color:var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background:
-        radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.18), transparent 55%),
-        radial-gradient(900px 600px at 80% 0%, rgba(59,130,246,.12), transparent 55%),
-        linear-gradient(120deg, var(--bg1), var(--bg2));
       min-height:100vh;
       display:flex;
       align-items:center;
       justify-content:center;
       padding:34px 18px;
-    }
-    .wrap{width: min(1040px, 100%);}
 
-    /* Top hero */
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.20), transparent 55%),
+        radial-gradient(900px 600px at 80% 0%, rgba(59,130,246,.14), transparent 55%),
+        linear-gradient(120deg, var(--bg1), var(--bg2));
+    }
+
+    .wrap{width:min(1040px, 100%);}
+
+    /* =========================
+       HERO
+       ========================= */
     .hero{
+      position:relative;
       display:grid;
-      grid-template-columns: 1.05fr .95fr;
+      grid-template-columns: 1.1fr .9fr;
       gap:16px;
       margin-bottom:16px;
       align-items:stretch;
     }
-    .brand{
+
+    .panel{
       position:relative;
-      border-radius: 22px;
-      border: 1px solid var(--stroke);
-      background: rgba(255,255,255,.05);
+      border-radius: var(--radius);
+      border:1px solid var(--stroke);
       box-shadow: var(--shadow);
       overflow:hidden;
-      padding:18px 18px 16px 18px;
-      backdrop-filter: blur(12px);
-      min-height: 160px;
+      backdrop-filter: blur(18px);
     }
-    .brand:before{
+
+    /* premium glow overlay */
+    .panel::before{
       content:"";
-      position:absolute; inset:-2px;
-      background:
-        radial-gradient(700px 220px at 10% 20%, rgba(245,196,81,.22), transparent 60%),
-        radial-gradient(520px 220px at 90% 10%, rgba(59,130,246,.18), transparent 60%);
+      position:absolute;
+      inset:-2px;
       pointer-events:none;
-      opacity:.9;
+      background:
+        radial-gradient(700px 260px at 18% 10%, rgba(245,196,81,.22), transparent 60%),
+        radial-gradient(520px 240px at 92% 10%, rgba(255,255,255,.08), transparent 60%),
+        radial-gradient(520px 300px at 75% 85%, rgba(59,130,246,.12), transparent 60%);
+      opacity:1;
     }
-    .brand-inner{position:relative; display:flex; gap:14px; align-items:center;}
+
+    /* make hero lighter (mobile issue fix) */
+    .brand{
+      background: linear-gradient(
+        135deg,
+        rgba(255,255,255,.10),
+        rgba(255,255,255,.045)
+      );
+      padding:18px 18px 16px 18px;
+      min-height: 170px;
+    }
+
+    .brand-inner{
+      position:relative;
+      display:flex;
+      gap:16px;
+      align-items:center;
+    }
+
     .logo{
-      width:130px;
-      height:130px;
-      border-radius:20px;
-      background: rgba(0,0,0,.35);
-      border:1px solid rgba(255,255,255,.14);
+      width:128px;
+      height:128px;
+      border-radius:24px;
+      background: linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+      border:1px solid var(--stroke2);
       display:flex;
       align-items:center;
       justify-content:center;
       padding:18px;
+      flex:0 0 auto;
+      box-shadow: 0 14px 38px rgba(0,0,0,.42);
     }
 
-    /* BIGGER + WHITE logo */
+    /* logo is already white PNG now -> NO invert filter */
     .logo img{
-      width:110px;
+      width:112px;
       height:auto;
       max-width:100%;
       display:block;
+      opacity:.98;
     }
+
     h1{
-      font-size: clamp(22px, 2.6vw, 34px);
+      font-size: clamp(22px, 2.8vw, 34px);
       margin:0 0 6px 0;
       letter-spacing:.2px;
     }
     .sub{
-      color:var(--muted);
+      color:rgba(229,231,235,.82);
       margin:0;
       line-height:1.45;
       font-size: 13.5px;
+      max-width: 58ch;
     }
+
     .meta{
       margin-top:12px;
       display:flex;
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
-      position:relative;
-      z-index:1;
     }
+
     .chip{
+      position:relative;
       display:inline-flex;
       gap:8px;
       align-items:center;
       padding:8px 10px;
       border-radius: 999px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(0,0,0,.22);
-      color: rgba(229,231,235,.9);
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.20);
+      color: rgba(229,231,235,.92);
       font-size:12px;
       white-space:nowrap;
     }
@@ -122,26 +164,29 @@
       background: linear-gradient(180deg, var(--accent), var(--accent2));
       box-shadow: 0 0 0 4px rgba(245,196,81,.12);
     }
+
     .adminlink{
       margin-left:auto;
       font-size:12px;
-      color:var(--muted);
+      color:rgba(229,231,235,.70);
+      white-space:nowrap;
     }
     .adminlink a{color:var(--accent); text-decoration:none}
     .adminlink a:hover{text-decoration:underline}
 
     .side{
-      border-radius: 22px;
-      border: 1px solid var(--stroke);
-      background: rgba(17,24,39,.55);
-      box-shadow: var(--shadow);
+      background: linear-gradient(
+        135deg,
+        rgba(255,255,255,.08),
+        rgba(255,255,255,.03)
+      );
       padding:18px;
-      backdrop-filter: blur(12px);
       display:flex;
       flex-direction:column;
       justify-content:center;
       gap:10px;
     }
+
     .side h2{
       margin:0;
       font-size:16px;
@@ -149,53 +194,67 @@
     }
     .side p{
       margin:0;
-      color:var(--muted);
+      color:rgba(229,231,235,.78);
       font-size:13px;
       line-height:1.45;
     }
     .side ul{
       margin:6px 0 0 0;
       padding-left:18px;
-      color: rgba(229,231,235,.9);
+      color: rgba(229,231,235,.92);
       font-size:13px;
       line-height:1.5;
     }
     .side li{margin:4px 0}
 
-    /* Form card */
+    /* =========================
+       FORM CARD (slightly lighter glass)
+       ========================= */
     .card{
-      background: var(--card);
-      border: 1px solid var(--stroke);
-      border-radius: 22px;
+      background: linear-gradient(
+        135deg,
+        rgba(255,255,255,.08),
+        rgba(255,255,255,.035)
+      );
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 20px;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(18px);
+      overflow:hidden;
     }
+
     .grid{
       display:grid;
       grid-template-columns: 1fr 1fr;
       gap:14px 16px;
     }
+
     label{
       display:block;
       font-size:12.5px;
-      color:var(--muted);
+      color:rgba(229,231,235,.72);
       margin:2px 0 6px;
     }
+
     input, textarea{
       width:100%;
       padding: 12px 12px;
       border-radius: 12px;
-      border:1px solid rgba(255,255,255,.14);
+      border:1px solid rgba(255,255,255,.16);
       background: var(--field);
       color: var(--text);
       outline:none;
-      transition: border-color .15s ease, transform .05s ease;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .05s ease;
     }
+
+    input::placeholder, textarea::placeholder{color: rgba(229,231,235,.35);}
+
     input:focus, textarea:focus{
       border-color: rgba(245,196,81,.55);
-      box-shadow: 0 0 0 4px rgba(245,196,81,.10);
+      box-shadow: 0 0 0 4px rgba(245,196,81,.12);
     }
+
     textarea{min-height:110px; resize:vertical}
     .span2{grid-column: 1 / -1;}
 
@@ -206,6 +265,7 @@
       margin-top:14px;
       flex-wrap:wrap;
     }
+
     button{
       appearance:none;
       border:none;
@@ -222,41 +282,72 @@
     button:hover{filter:brightness(1.04)}
     button:active{transform: translateY(1px)}
 
-    .hint{color:var(--muted); font-size:13px; line-height:1.4}
+    .hint{color:rgba(229,231,235,.68); font-size:13px; line-height:1.4}
+
     .msg{
       margin-top:14px;
       border-radius: 14px;
-      border:1px solid rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.14);
       padding:14px;
-      background: rgba(0,0,0,.25);
+      background: rgba(0,0,0,.22);
       display:none;
     }
     .msg.ok{border-color: rgba(34,197,94,.35)}
     .msg.err{border-color: rgba(239,68,68,.35)}
     .msg a{color:#93c5fd}
 
+    /* =========================
+       MOBILE TUNING
+       ========================= */
     @media (max-width: 920px){
-      .hero{grid-template-columns: 1fr; }
+      .hero{grid-template-columns: 1fr;}
       .adminlink{margin-left:0}
+      .brand-inner{align-items:flex-start}
+      .sub{max-width:none}
     }
-    @media (max-width: 820px){
+
+    @media (max-width: 520px){
+      body{padding:22px 14px}
+      .logo{
+        width:110px;
+        height:110px;
+        padding:16px;
+      }
+      .logo img{width:96px}
+      .brand{padding:16px}
+      .side{padding:16px}
+      .card{padding:16px}
       .grid{grid-template-columns: 1fr;}
+    }
+
+    /* subtle fade-in */
+    .panel, .card{
+      animation: fadeUp .35s ease both;
+    }
+    @keyframes fadeUp{
+      from{opacity:0; transform: translateY(8px);}
+      to{opacity:1; transform: translateY(0);}
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
 
     <section class="hero">
-      <div class="brand">
+      <div class="panel brand">
         <div class="brand-inner">
           <div class="logo" aria-hidden="true">
-            <!-- If your logo is in frontend/logo.png, use ./logo.png -->
+            <!-- Put your new PNG here as: frontend/logo.png -->
             <img src="./logo.png" alt="Landsky logo" />
           </div>
-          <div style="min-width:0">
+
+          <div style="min-width:0; position:relative;">
             <h1>Upit za vjenčanje</h1>
-            <p class="sub">Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit. Odgovorit ćemo s ponudom i detaljima.</p>
+            <p class="sub">
+              Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit.
+              Odgovorit ćemo s ponudom i detaljima.
+            </p>
 
             <div class="meta">
               <span class="chip"><span class="dot"></span> Brzi odgovor</span>
@@ -268,7 +359,7 @@
         </div>
       </div>
 
-      <aside class="side">
+      <aside class="panel side">
         <h2>Što se događa nakon slanja?</h2>
         <p>Na email dobivate ponudu s linkovima za prihvaćanje/odbijanje i odabir paketa.</p>
         <ul>
@@ -286,6 +377,7 @@
             <label for="first_name">Ime</label>
             <input id="first_name" required placeholder="npr. Mario" />
           </div>
+
           <div>
             <label for="last_name">Prezime</label>
             <input id="last_name" required placeholder="npr. Kozina" />
@@ -295,6 +387,7 @@
             <label for="wedding_date">Datum vjenčanja</label>
             <input id="wedding_date" type="date" required />
           </div>
+
           <div>
             <label for="venue">Lokacija / Sala</label>
             <input id="venue" required placeholder="npr. Sala Korana" />
@@ -304,6 +397,7 @@
             <label for="guest_count">Broj gostiju</label>
             <input id="guest_count" type="number" min="1" required placeholder="npr. 120" />
           </div>
+
           <div>
             <label for="email">E-mail</label>
             <input id="email" type="email" required placeholder="npr. mladenci@email.com" />
@@ -330,54 +424,54 @@
     </div>
   </div>
 
-<script>
-const form = document.getElementById('f');
-const msg = document.getElementById('msg');
+  <script>
+    const form = document.getElementById('f');
+    const msg = document.getElementById('msg');
 
-function show(type, html){
-  msg.className = 'msg ' + type;
-  msg.innerHTML = html;
-  msg.style.display = 'block';
-}
+    function show(type, html){
+      msg.className = 'msg ' + type;
+      msg.innerHTML = html;
+      msg.style.display = 'block';
+    }
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  msg.style.display = 'none';
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.style.display = 'none';
 
-  const payload = {
-    first_name: document.getElementById('first_name').value,
-    last_name: document.getElementById('last_name').value,
-    wedding_date: document.getElementById('wedding_date').value,
-    venue: document.getElementById('venue').value,
-    guest_count: parseInt(document.getElementById('guest_count').value || '0', 10),
-    email: document.getElementById('email').value,
-    phone: document.getElementById('phone').value,
-    message: document.getElementById('message').value,
-  };
+      const payload = {
+        first_name: document.getElementById('first_name').value,
+        last_name: document.getElementById('last_name').value,
+        wedding_date: document.getElementById('wedding_date').value,
+        venue: document.getElementById('venue').value,
+        guest_count: parseInt(document.getElementById('guest_count').value || '0', 10),
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        message: document.getElementById('message').value,
+      };
 
-  try{
-    const res = await fetch('/register', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
+      try{
+        const res = await fetch('/register', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(()=> ({}));
+        if(!res.ok){
+          show('err', '<b>Greška:</b> ' + (data?.detail?.[0]?.msg || data?.detail || 'Neuspješno slanje.'));
+          return;
+        }
+
+        let extra = '';
+        if(data.preview_url){
+          extra = '<br><br><b>TEST preview:</b><br><a href="'+data.preview_url+'" target="_blank" rel="noopener">'+data.preview_url+'</a>';
+        }
+        show('ok', '<b>Vaš upit je zaprimljen.</b>' + extra);
+        form.reset();
+      }catch(err){
+        show('err', '<b>Greška:</b> ' + String(err));
+      }
     });
-
-    const data = await res.json().catch(()=> ({}));
-    if(!res.ok){
-      show('err', '<b>Greška:</b> ' + (data?.detail?.[0]?.msg || data?.detail || 'Neuspješno slanje.'));
-      return;
-    }
-
-    let extra = '';
-    if(data.preview_url){
-      extra = '<br><br><b>TEST preview:</b><br><a href="'+data.preview_url+'" target="_blank" rel="noopener">'+data.preview_url+'</a>';
-    }
-    show('ok', '<b>Vaš upit je zaprimljen.</b>' + extra);
-    form.reset();
-  }catch(err){
-    show('err', '<b>Greška:</b> ' + String(err));
-  }
-});
-</script>
+  </script>
 </body>
 </html>
