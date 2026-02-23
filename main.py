@@ -333,22 +333,22 @@ def render_offer_html(e: Event) -> str:
     <div style="background:#0b0f14; padding:18px 18px 12px 18px;">
       <div style="display:flex; align-items:center; gap:14px;">
         <img src="{logo_url}" alt="Landsky Cocktail Catering"
-          style="width:68px; height:68px; object-fit:contain;
-                 background:#ffffff; border:1px solid rgba(0,0,0,.08);
-                 border-radius:14px; padding:10px;">
-        <div>
-          <div style="color:#fff; font-size:18px; font-weight:700;">Landsky Cocktail Catering</div>
-          <div style="color:rgba(255,255,255,.7); font-size:12px;">Ponuda</div>
+          style="width:68px; height:68px; object-fit:contain; border-radius:12px; background:#111; padding:6px;" />
+        <div style="color:#fff;">
+          <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
+          <div style="font-size:13px; opacity:.85;">Ponuda</div>
         </div>
       </div>
     </div>
 
     <div style="padding:18px;">
-      <p style="margin:0 0 10px 0;"><b>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</b></p>
-      <p style="margin:0 0 14px 0;">Zahvaljujemo na Vašem upitu. U nastavku dostavljamo informacije vezane za cocktail catering.</p>
+      <div style="font-size:14px;">
+        Poštovani/Poštovana <b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b>,<br>
+        zahvaljujemo na Vašem upitu. U nastavku dostavljamo informacije vezane za cocktail catering.
+      </div>
 
-      <div style="background:#fafafa; border:1px solid #eee; border-radius:12px; padding:12px 14px; margin:14px 0;">
-        <div style="font-weight:700; margin-bottom:6px;">Sažetak upita</div>
+      <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fafafa;">
+        <div style="font-weight:700; margin-bottom:8px;">Sažetak upita</div>
         <div>📅 <b>Datum:</b> {html.escape(str(e.wedding_date))}</div>
         <div>📍 <b>Lokacija / sala:</b> {html.escape(e.venue)}</div>
         <div>👥 <b>Broj gostiju:</b> {e.guest_count}</div>
@@ -357,40 +357,58 @@ def render_offer_html(e: Event) -> str:
         <div style="margin-top:8px;"><b>Napomena / pitanja:</b><br>{msg_html}</div>
       </div>
 
-      <div style="background:#fff7e6; border:1px solid #f3e3bf; border-radius:12px; padding:12px 14px; margin:14px 0;">
-        <div style="font-weight:700; margin-bottom:6px;">Cijene paketa</div>
+      <div style="margin-top:14px; padding:14px; border:1px solid #ffe8c2; border-radius:12px; background:#fff7ea;">
+        <div style="font-weight:700; margin-bottom:8px;">U ponudi su sljedeći paketi:</div>
+
+        <div style="margin:8px 0 10px 0;">
+          <div style="font-weight:700;">Ponuda uključuje:</div>
+          <ul style="margin:6px 0 0 18px; padding:0;">
+            <li>Profesionalnog barmena</li>
+            <li>Event menu s koktelima prilagođen temi eventa (po želji)</li>
+            <li>Alkoholne i bezalkoholne koktele</li>
+            <li>Premium led / nefrumirani led</li>
+            <li>Dekoracije</li>
+            <li>Šank</li>
+          </ul>
+        </div>
+
+        <div style="font-weight:700; margin:10px 0 6px 0;">Cijene paketa</div>
         <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
         <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) — dodatnih 100: 600 EUR + PDV</div>
         <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) — dodatnih 100: 800 EUR + PDV</div>
-        <div style="margin-top:8px; color:#6b5a2a;">* Preporučujemo 200 koktela.</div>
+
         <div style="margin-top:10px;">
-          📎 Detalji paketa: <a href="{cocktails_pdf}">{cocktails_pdf}</a>
+          * Preporučujemo 200 koktela.
+        </div>
+
+        <div style="margin-top:10px;">
+          📎 Detalji paketa: <a href="{cocktails_pdf}" target="_blank" style="color:#0b57d0;">{cocktails_pdf}</a>
         </div>
       </div>
 
-      <div style="margin:14px 0;">
-        <div style="font-weight:700; margin-bottom:6px;">Premium cigare (opcionalno)</div>
-        <p style="margin:0 0 8px 0;">
-          Uz odabir cigara od nas dobivate humidor, rezač, upaljač i pepeljare.
-          Nudimo i <b>Cigar Connoisseur</b> uslugu — <b>450 EUR + PDV</b> (3 sata).
-        </p>
-        📎 Popis cigara: <a href="{cigare_img}">{cigare_img}</a>
+      <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fff;">
+        <div style="font-weight:700; margin-bottom:8px;">Premium cigare (opcionalno)</div>
+        <div>Uz odabir cigara od nas dobivate humidor, rezac, upaljač i pepeljaru. Nudimo i Cigar Concierge uslugu — <b>450 EUR + PDV</b> (3 sata).</div>
+        <div style="margin-top:8px;">📎 Popis cigara: <a href="{cigare_img}" target="_blank" style="color:#0b57d0;">{cigare_img}</a></div>
+        <div style="margin-top:8px;">Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.</div>
+        <div style="margin-top:8px;">Rado Vas pozivamo na prezentaciju koktela u našem LandSky Baru (Draškovićeva 144), gdje ćemo Vam detaljno predstaviti našu uslugu i odabrati najbolje za vaš event.</div>
+        <div style="margin-top:8px;">📎 Fotografija bara: <a href="{bar_img}" target="_blank" style="color:#0b57d0;">{bar_img}</a></div>
       </div>
 
-      <p style="margin:0 0 10px 0;">
-        Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.
-      </p>
-
-      <div style="border-top:1px solid #eee; margin-top:16px; padding-top:14px;">
-        <div style="font-weight:700; margin-bottom:6px;">Potvrda ponude</div>
-        <p style="margin:0 0 10px 0;">Molimo potvrdite ponudu klikom:</p>
-        <p style="margin:0;">
-          ✅ <a href="{accept_link}">Prihvaćam</a><br>
-          ❌ <a href="{decline_link}">Odbijam</a>
-        </p>
-        <p style="margin:10px 0 0; color:#6b7280; font-size:12px;">
+      <div style="margin-top:14px; padding:14px; border:1px solid #e8f5e9; border-radius:12px; background:#f2fbf3;">
+        <div style="font-weight:700; margin-bottom:8px;">Potvrda ponude</div>
+        <div>Molimo potvrdite ponudu klikom:</div>
+        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+          <a href="{accept_link}" style="background:#1b5e20; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700;">✅ Prihvaćam</a>
+          <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700;">❌ Odbijam</a>
+        </div>
+        <div style="margin-top:10px; font-size:12px; color:#333;">
           Napomena: kod prihvaćanja ćete odabrati paket (Classic / Premium / Signature).
-        </p>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; font-size:12px; color:#666;">
+        Ovaj email je generiran automatski. Ako trebate pomoć, odgovorite na ovaj email.
       </div>
     </div>
   </div>
