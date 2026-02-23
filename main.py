@@ -4,7 +4,7 @@ import uuid
 import html
 import base64
 import smtplib
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, time
 from email.mime.text import MIMEText
 from typing import Generator, Optional
 
@@ -25,6 +25,15 @@ except Exception:
     BackgroundScheduler = None
 
 load_dotenv()
+
+import logging
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
+logger = logging.getLogger("landsly")
 
 # ======================
 # ENV
@@ -129,6 +138,11 @@ class Event(Base):
     # Reminder tracking
     last_email_sent_at = Column(DateTime, nullable=True)
     reminder_count = Column(Integer, default=0, nullable=False)
+    # Offer / reminder tracking (idempotent flags)
+    offer_sent_at = Column(DateTime, nullable=True)
+    reminder_3d_sent_at = Column(DateTime, nullable=True)
+    reminder_7d_sent_at = Column(DateTime, nullable=True)
+    event_2d_sent_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -142,16 +156,22 @@ try:
         if "sqlite" in str(engine.url):
             cols = conn.execute(text("PRAGMA table_info(events);")).fetchall()
             names = [c[1] for c in cols]
-            if "message" not in names:
-                conn.execute(text("ALTER TABLE events ADD COLUMN message TEXT"))
-            if "selected_package" not in names:
-                conn.execute(text("ALTER TABLE events ADD COLUMN selected_package TEXT"))
-            if "last_email_sent_at" not in names:
-                conn.execute(text("ALTER TABLE events ADD COLUMN last_email_sent_at DATETIME"))
-            if "reminder_count" not in names:
-                conn.execute(text("ALTER TABLE events ADD COLUMN reminder_count INTEGER DEFAULT 0"))
-            if "updated_at" not in names:
-                conn.execute(text("ALTER TABLE events ADD COLUMN updated_at DATETIME"))
+
+            def add_sqlite(col: str, ddl: str):
+                if col not in names:
+                    conn.execute(text(ddl))
+
+            add_sqlite("message", "ALTER TABLE events ADD COLUMN message TEXT")
+            add_sqlite("selected_package", "ALTER TABLE events ADD COLUMN selected_package TEXT")
+            add_sqlite("last_email_sent_at", "ALTER TABLE events ADD COLUMN last_email_sent_at DATETIME")
+            add_sqlite("reminder_count", "ALTER TABLE events ADD COLUMN reminder_count INTEGER DEFAULT 0")
+            add_sqlite("updated_at", "ALTER TABLE events ADD COLUMN updated_at DATETIME")
+
+            # New additive fields
+            add_sqlite("offer_sent_at", "ALTER TABLE events ADD COLUMN offer_sent_at DATETIME")
+            add_sqlite("reminder_3d_sent_at", "ALTER TABLE events ADD COLUMN reminder_3d_sent_at DATETIME")
+            add_sqlite("reminder_7d_sent_at", "ALTER TABLE events ADD COLUMN reminder_7d_sent_at DATETIME")
+            add_sqlite("event_2d_sent_at", "ALTER TABLE events ADD COLUMN event_2d_sent_at DATETIME")
         else:
             def col_exists(col: str) -> bool:
                 r = conn.execute(
@@ -173,8 +193,19 @@ try:
                 conn.execute(text("ALTER TABLE events ADD COLUMN reminder_count INTEGER DEFAULT 0"))
             if not col_exists("updated_at"):
                 conn.execute(text("ALTER TABLE events ADD COLUMN updated_at TIMESTAMP NULL"))
+
+            # New additive fields
+            if not col_exists("offer_sent_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN offer_sent_at TIMESTAMP NULL"))
+            if not col_exists("reminder_3d_sent_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN reminder_3d_sent_at TIMESTAMP NULL"))
+            if not col_exists("reminder_7d_sent_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN reminder_7d_sent_at TIMESTAMP NULL"))
+            if not col_exists("event_2d_sent_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN event_2d_sent_at TIMESTAMP NULL"))
 except Exception as ex:
-    print("MIGRATIONS skipped/failed:", repr(ex))
+    logger.exception("MIGRATIONS skipped/failed")
+
 
 
 def db_session() -> Generator[Session, None, None]:
@@ -396,9 +427,13 @@ def send_offer_flow(e: Event, db: Optional[Session] = None):
     )
 
     if db is not None:
-        e.last_email_sent_at = datetime.utcnow()
+        now = datetime.utcnow()
+        e.last_email_sent_at = now
+        e.offer_sent_at = now
         e.reminder_count = 0
-        e.updated_at = datetime.utcnow()
+        e.reminder_3d_sent_at = None
+        e.reminder_7d_sent_at = None
+        e.updated_at = now
         db.commit()
 
 
@@ -416,37 +451,149 @@ def reminder_email_body(e: Event) -> str:
 """
 
 
+
+def event_2d_email_body(e: Event) -> str:
+    return f"""
+<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
+  <h2>Podsjetnik — Vaše vjenčanje je uskoro</h2>
+  <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+  <p>Samo kratka potvrda da smo sve spremni za vaš datum <b>{html.escape(str(e.wedding_date))}</b> na lokaciji <b>{html.escape(e.venue)}</b>.</p>
+  <p>Ako imate bilo kakve promjene oko broja gostiju ili detalja, slobodno nam se javite.</p>
+  <p>Srdačno,<br>Landsky Cocktail Catering</p>
+</div>
+"""
+
+
+def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
+    """Returns (kind, due_at) where kind is: offer_3d, offer_7d, event_2d."""
+    # Offer reminders for pending events
+    if e.status == "pending":
+        base = e.offer_sent_at or e.last_email_sent_at
+        if base:
+            if e.reminder_3d_sent_at is None:
+                return ("offer_3d", base + timedelta(days=REMINDER_DAY_1))
+            if e.reminder_7d_sent_at is None:
+                return ("offer_7d", base + timedelta(days=REMINDER_DAY_2))
+
+    # 2 days before wedding date for accepted
+    if e.status == "accepted" and e.event_2d_sent_at is None and e.wedding_date:
+        event_dt = datetime.combine(e.wedding_date, time(12, 0))
+        return ("event_2d", event_dt - timedelta(days=2))
+
+    return (None, None)
+
+
+
 def reminder_job():
+    """Hourly reminders with idempotency + Postgres advisory lock."""
     db = SessionLocal()
+    lock_acquired = False
     try:
         now = datetime.utcnow()
-        items = db.query(Event).filter(Event.status == "pending").all()
-        for e in items:
-            if not e.last_email_sent_at:
+
+        # Prevent duplicate scheduler runs (Postgres only)
+        if not ("sqlite" in str(engine.url)):
+            try:
+                lock_acquired = bool(
+                    db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": 927341}).scalar()
+                )
+                if not lock_acquired:
+                    logger.info("reminder_job: lock not acquired, skipping")
+                    return
+            except Exception:
+                # If lock fails for any reason, proceed without it (still idempotent by DB flags)
+                logger.exception("reminder_job: advisory lock error")
+
+        # 1) Offer reminders (pending)
+        pending = db.query(Event).filter(Event.status == "pending").all()
+        for e in pending:
+            base = e.offer_sent_at or e.last_email_sent_at
+            if not base:
                 continue
-            days = (now - e.last_email_sent_at).days
+
             recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
 
-            if e.reminder_count == 0 and days >= REMINDER_DAY_1:
-                send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
-                e.reminder_count = 1
-                e.last_email_sent_at = now
-                e.updated_at = now
+            # 3-day (or REMINDER_DAY_1) reminder
+            if e.reminder_3d_sent_at is None and (now - base).days >= REMINDER_DAY_1:
+                # Claim atomically
+                res = db.execute(
+                    text(
+                        "UPDATE events SET reminder_3d_sent_at=:now, last_email_sent_at=:now, "
+                        "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
+                        "WHERE id=:id AND reminder_3d_sent_at IS NULL"
+                    ),
+                    {"now": now, "id": e.id},
+                )
                 db.commit()
-            elif e.reminder_count == 1 and days >= REMINDER_DAY_2:
-                send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
-                e.reminder_count = 2
-                e.last_email_sent_at = now
-                e.updated_at = now
+                if res.rowcount == 1:
+                    try:
+                        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                    except Exception:
+                        logger.exception("reminder_job: send failed (offer_3d)", extra={"event_id": e.id})
+                continue
+
+            # 7-day (or REMINDER_DAY_2) reminder
+            if e.reminder_3d_sent_at is not None and e.reminder_7d_sent_at is None and (now - base).days >= REMINDER_DAY_2:
+                res = db.execute(
+                    text(
+                        "UPDATE events SET reminder_7d_sent_at=:now, last_email_sent_at=:now, "
+                        "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
+                        "WHERE id=:id AND reminder_7d_sent_at IS NULL"
+                    ),
+                    {"now": now, "id": e.id},
+                )
                 db.commit()
-    except Exception as ex:
-        print("REMINDER JOB ERROR:", repr(ex))
+                if res.rowcount == 1:
+                    try:
+                        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                    except Exception:
+                        logger.exception("reminder_job: send failed (offer_7d)", extra={"event_id": e.id})
+
+        # 2) Accepted events: 2 days before wedding date (only once)
+        accepted = db.query(Event).filter(Event.status == "accepted").all()
+        for e in accepted:
+            if e.event_2d_sent_at is not None:
+                continue
+            if not e.wedding_date:
+                continue
+            due_at = datetime.combine(e.wedding_date, time(12, 0)) - timedelta(days=2)
+            if now < due_at:
+                continue
+
+            recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+            res = db.execute(
+                text(
+                    "UPDATE events SET event_2d_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
+                    "WHERE id=:id AND event_2d_sent_at IS NULL"
+                ),
+                {"now": now, "id": e.id},
+            )
+            db.commit()
+            if res.rowcount == 1:
+                try:
+                    send_email(recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+                except Exception:
+                    logger.exception("reminder_job: send failed (event_2d)", extra={"event_id": e.id})
+
+    except Exception:
+        logger.exception("REMINDER JOB ERROR")
+        try:
+            db.rollback()
+        except Exception:
+            pass
     finally:
+        if lock_acquired and not ("sqlite" in str(engine.url)):
+            try:
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": 927341})
+                db.commit()
+            except Exception:
+                pass
         db.close()
 
 
 # ======================
 # APP
+
 # ======================
 
 app = FastAPI(title="Landsky Wedding App")
@@ -461,9 +608,9 @@ def _startup():
         scheduler.add_job(reminder_job, "interval", hours=1)
         scheduler.start()
         app.state.scheduler = scheduler
-        print("Reminder scheduler started.")
+        logger.info("Reminder scheduler started.")
     else:
-        print("Reminder scheduler disabled or APScheduler not installed.")
+        logger.info("Reminder scheduler disabled or APScheduler not installed.")
 
 
 # ======================
@@ -505,7 +652,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
     try:
         send_offer_flow(e, db=db)
     except Exception as ex:
-        print("EMAIL SEND FAILED:", repr(ex))
+        logger.exception("EMAIL SEND FAILED")
 
     return {"message": "Vaš upit je zaprimljen.", "preview_url": preview_url}
 
@@ -707,8 +854,11 @@ def admin_events(
             or (e.email and qq in e.email.lower())
         ]
 
-    return {
-        "items": [
+    
+    items = []
+    for e in rows:
+        kind, due_at = compute_next_reminder(e)
+        items.append(
             {
                 "id": e.id,
                 "token": e.token,
@@ -724,13 +874,17 @@ def admin_events(
                 "selected_package": e.selected_package or "",
                 "reminder_count": int(e.reminder_count or 0),
                 "last_email_sent_at": e.last_email_sent_at.isoformat() if e.last_email_sent_at else None,
+                "next_reminder_kind": kind,
+                "next_reminder_due": due_at.isoformat() if due_at else None,
+                "offer_sent_at": e.offer_sent_at.isoformat() if e.offer_sent_at else None,
+                "reminder_3d_sent_at": e.reminder_3d_sent_at.isoformat() if e.reminder_3d_sent_at else None,
+                "reminder_7d_sent_at": e.reminder_7d_sent_at.isoformat() if e.reminder_7d_sent_at else None,
+                "event_2d_sent_at": e.event_2d_sent_at.isoformat() if e.event_2d_sent_at else None,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
                 "updated_at": e.updated_at.isoformat() if e.updated_at else None,
             }
-            for e in rows
-        ]
-    }
-
+        )
+    return {"items": items}
 
 def _apply_status(e: Event, status: str):
     status = status.strip().lower()
@@ -806,3 +960,69 @@ def admin_resend_offer(
         raise HTTPException(status_code=404, detail="Not found")
     send_offer_flow(e, db=db)
     return {"ok": True}
+
+
+@app.post("/admin/api/events/{event_id}/send-reminder-now")
+def admin_send_reminder_now(
+    event_id: int,
+    request: Request,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    _require_admin(request)
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    kind, due_at = compute_next_reminder(e)
+    if not kind:
+        raise HTTPException(status_code=400, detail="No reminder due for this event")
+
+    now = datetime.utcnow()
+    recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+
+    if kind == "offer_3d":
+        res = db.execute(
+            text(
+                "UPDATE events SET reminder_3d_sent_at=:now, last_email_sent_at=:now, "
+                "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
+                "WHERE id=:id AND reminder_3d_sent_at IS NULL"
+            ),
+            {"now": now, "id": e.id},
+        )
+        db.commit()
+        if res.rowcount != 1:
+            return {"ok": True, "skipped": True}
+        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+        return {"ok": True}
+
+    if kind == "offer_7d":
+        res = db.execute(
+            text(
+                "UPDATE events SET reminder_7d_sent_at=:now, last_email_sent_at=:now, "
+                "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
+                "WHERE id=:id AND reminder_7d_sent_at IS NULL"
+            ),
+            {"now": now, "id": e.id},
+        )
+        db.commit()
+        if res.rowcount != 1:
+            return {"ok": True, "skipped": True}
+        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+        return {"ok": True}
+
+    if kind == "event_2d":
+        res = db.execute(
+            text(
+                "UPDATE events SET event_2d_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
+                "WHERE id=:id AND event_2d_sent_at IS NULL"
+            ),
+            {"now": now, "id": e.id},
+        )
+        db.commit()
+        if res.rowcount != 1:
+            return {"ok": True, "skipped": True}
+        send_email(recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+        return {"ok": True}
+
+    raise HTTPException(status_code=400, detail="Invalid reminder type")
