@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String, Text, create_engine, text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # Optional scheduler
@@ -148,6 +148,25 @@ class Event(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    email_type = Column(String(50), nullable=False)  # internal_new_inquiry/offer/offer_3d/offer_7d/event_2d/resend_offer/admin_manual
+    to_email = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=False)
+
+    provider = Column(String(30), nullable=False, default="resend")
+    provider_message_id = Column(String(120), nullable=True)
+
+    status = Column(String(20), nullable=False, default="sent")  # sent/failed
+    error = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 Base.metadata.create_all(bind=engine)
 
 # --- MVP migrations (best-effort) ---
@@ -256,8 +275,14 @@ def send_email_resend(to_email: str, subject: str, body_html: str):
         },
         timeout=30,
     )
+    data = {}
+    try:
+        data = r.json()
+    except Exception:
+        data = {}
     if r.status_code >= 300:
         raise RuntimeError(f"Resend error: {r.text}")
+    return data.get("id")
 
 
 def send_email_smtp(to_email: str, subject: str, body_html: str):
@@ -278,6 +303,43 @@ def send_email(to_email: str, subject: str, body_html: str):
     if EMAIL_PROVIDER == "smtp":
         return send_email_smtp(to_email, subject, body_html)
     return send_email_resend(to_email, subject, body_html)
+
+
+
+def send_email_logged(db: Session, event_id: int, email_type: str, to_email: str, subject: str, body_html: str) -> None:
+    """Send email and persist an audit log row.
+    This is intentionally best-effort: we always write a log row (sent or failed).
+    """
+    provider_message_id = None
+    status = "sent"
+    error = None
+    try:
+        provider_message_id = send_email(to_email, subject, body_html)
+    except Exception as ex:
+        status = "failed"
+        error = str(ex)
+        logger.exception("email_send_failed", extra={"event_id": event_id, "email_type": email_type, "to": to_email})
+        # keep raising so caller can decide what to do
+        raise
+    finally:
+        try:
+            db.add(
+                EmailLog(
+                    event_id=event_id,
+                    email_type=email_type,
+                    to_email=to_email,
+                    subject=subject[:255],
+                    provider=EMAIL_PROVIDER,
+                    provider_message_id=provider_message_id,
+                    status=status,
+                    error=error,
+                    created_at=datetime.utcnow(),
+                )
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("email_log_write_failed", extra={"event_id": event_id, "email_type": email_type})
 
 
 def get_reminder_recipient(e: "Event", kind: str) -> str:
@@ -443,19 +505,22 @@ def internal_email_body(e: Event) -> str:
 
 def send_offer_flow(e: Event, db: Optional[Session] = None):
     # internal notification
-    send_email(
-        CATERING_TEAM_EMAIL,
-        f"Novi upit: {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}",
-        internal_email_body(e),
-    )
+    subject_internal = f"Novi upit: {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
+    body_internal = internal_email_body(e)
+    if db is not None:
+        send_email_logged(db, e.id, "internal_new_inquiry", CATERING_TEAM_EMAIL, subject_internal, body_internal)
+    else:
+        send_email(CATERING_TEAM_EMAIL, subject_internal, body_internal)
+
 
     # offer email
     offer_recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
-    send_email(
-        offer_recipient,
-        f"Ponuda – {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}",
-        render_offer_html(e),
-    )
+    subject_offer = f"Ponuda – {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
+    body_offer = render_offer_html(e)
+    if db is not None:
+        send_email_logged(db, e.id, "offer", offer_recipient, subject_offer, body_offer)
+    else:
+        send_email(offer_recipient, subject_offer, body_offer)
 
     if db is not None:
         now = datetime.utcnow()
@@ -556,7 +621,7 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email(get_reminder_recipient(e, "offer_3d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(db, e.id, "offer_3d", get_reminder_recipient(e, "offer_3d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_3d)", extra={"event_id": e.id})
                 continue
@@ -574,7 +639,7 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email(get_reminder_recipient(e, "offer_7d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(db, e.id, "offer_7d", get_reminder_recipient(e, "offer_7d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_7d)", extra={"event_id": e.id})
 
@@ -602,7 +667,7 @@ def reminder_job():
             db.commit()
             if res.rowcount == 1:
                 try:
-                    send_email(recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+                    send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
                 except Exception:
                     logger.exception("reminder_job: send failed (event_2d)", extra={"event_id": e.id})
 
@@ -926,6 +991,36 @@ def _apply_status(e: Event, status: str):
     e.updated_at = datetime.utcnow()
 
 
+
+@app.get("/admin/api/events/{event_id}/email-logs")
+def admin_email_logs(
+    event_id: int,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    logs = (
+        db.query(EmailLog)
+        .filter(EmailLog.event_id == event_id)
+        .order_by(EmailLog.id.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id": l.id,
+            "event_id": l.event_id,
+            "email_type": l.email_type,
+            "to_email": l.to_email,
+            "subject": l.subject,
+            "provider": l.provider,
+            "provider_message_id": l.provider_message_id,
+            "status": l.status,
+            "error": l.error,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+        }
+        for l in logs
+    ]
+
 @app.post("/admin/api/events/{event_id}/status")
 def admin_set_status(
     event_id: int,
@@ -1054,7 +1149,7 @@ def admin_send_reminder_now(
         db.commit()
         if res.rowcount != 1:
             return {"ok": True, "skipped": True}
-        send_email(recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+        send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
         return {"ok": True}
 
     raise HTTPException(status_code=400, detail="Invalid reminder type")
