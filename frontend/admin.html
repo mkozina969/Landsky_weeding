@@ -2,93 +2,26 @@
 <html lang="hr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Landsky Admin</title>
   <style>
-    :root{
-      --bg:#0b0f14;
-      --panel:rgba(255,255,255,.06);
-      --stroke:rgba(255,255,255,.14);
-      --text:#e8eef7;
-      --muted:rgba(255,255,255,.65);
-      --gold:#d7b46a;
-      --ok:#32d296;
-      --bad:#ff5a5f;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      color:var(--text);
-      background:linear-gradient(180deg,#0b0f14,#101826);
-      padding:22px;
-    }
-    h1{margin:0 0 6px 0}
-    .sub{margin:0 0 14px 0; color:var(--muted); font-size:13px}
-    .bar{
-      display:flex; gap:10px; flex-wrap:wrap;
-      align-items:center;
-      padding:12px;
-      border:1px solid var(--stroke);
-      background:var(--panel);
-      border-radius:14px;
-      margin-bottom:14px;
-    }
-    select,input{
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.16);
-      background:rgba(0,0,0,.25);
-      color:var(--text);
-      outline:none;
-    }
-    button{
-      padding:10px 12px;
-      border-radius:12px;
-      border:0;
-      cursor:pointer;
-      background:#1b2333;
-      color:var(--text);
-      border:1px solid rgba(255,255,255,.12);
-    }
-    button.primary{background:linear-gradient(180deg,var(--gold),#b8933f); color:#111; font-weight:700}
-    button.bad{border-color:rgba(255,90,95,.4)}
-    table{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0;
-      overflow:hidden;
-      border:1px solid var(--stroke);
-      border-radius:14px;
-      background:rgba(0,0,0,.18);
-    }
-    thead th{
-      text-align:left;
-      font-size:12px;
-      color:var(--muted);
-      padding:12px;
-      border-bottom:1px solid rgba(255,255,255,.10);
-      background:rgba(255,255,255,.04);
-    }
-    tbody td{
-      padding:12px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      vertical-align:top;
-      font-size:13px;
-    }
-    .pill{
-      display:inline-block;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.16);
-      font-size:12px;
-      color:var(--muted);
-    }
-    .pill.ok{border-color:rgba(50,210,150,.35); color:#b7ffdf}
-    .pill.bad{border-color:rgba(255,90,95,.35); color:#ffd0d1}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; padding:24px; background:#f6f7fb; color:#111;}
+    h1{margin:0 0 6px}
+    .sub{margin:0 0 18px; color:#555}
+    .bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px}
+    select,input{padding:10px; border:1px solid #ddd; border-radius:10px}
+    button{padding:10px 14px; border:1px solid #ddd; border-radius:10px; background:#fff; cursor:pointer}
+    table{width:100%; border-collapse:collapse; background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden}
+    th,td{padding:10px 10px; border-bottom:1px solid #f0f0f0; text-align:left; font-size:14px; vertical-align:top}
+    th{background:#fafafa; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#555}
+    .pill{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid #ddd}
+    .pending{background:#fff7ed; border-color:#fed7aa}
+    .accepted{background:#ecfdf5; border-color:#a7f3d0}
+    .declined{background:#fef2f2; border-color:#fecaca}
+    .muted{color:#666; font-size:12px}
     .actions{display:flex; gap:8px; flex-wrap:wrap}
-    a{color:#8bd6ff}
+    a{color:#2563eb}
+    .empty{padding:14px; background:#fff; border:1px dashed #ddd; border-radius:12px; color:#555}
   </style>
 </head>
 <body>
@@ -96,168 +29,97 @@
   <p class="sub">Pregled upita i promjena statusa (Basic Auth).</p>
 
   <div class="bar">
-    <label style="color:var(--muted); font-size:12px;">Status</label>
     <select id="status">
       <option value="">Svi</option>
       <option value="pending">pending</option>
       <option value="accepted">accepted</option>
       <option value="declined">declined</option>
     </select>
-
-    <label style="color:var(--muted); font-size:12px;">Pretraga (ime/email)</label>
-    <input id="q" placeholder="npr. ivo ili gmail.com" />
-
-    <button class="primary" id="refresh">Osvježi</button>
-    <button class="bad" id="logout">Odjava</button>
-
-    <span id="msg" style="color:var(--muted); font-size:12px;"></span>
+    <input id="q" placeholder="Pretraga (ime/email)" />
+    <button id="refresh">Osvježi</button>
+    <button id="logout">Odjava</button>
+    <span class="muted" id="info"></span>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th style="width:60px;">ID</th>
-        <th style="width:120px;">Status</th>
-        <th style="width:180px;">Mladenci</th>
-        <th style="width:120px;">Datum</th>
-        <th style="width:220px;">Lokacija</th>
-        <th style="width:90px;">Gosti</th>
-        <th style="width:240px;">Kontakt</th>
-        <th style="width:160px;">Paket</th>
-        <th>Token / link</th>
-        <th style="width:220px;">Akcije</th>
-      </tr>
-    </thead>
-    <tbody id="tbody">
-      <tr><td colspan="10" style="color:var(--muted); padding:18px;">Učitavanje...</td></tr>
-    </tbody>
-  </table>
+  <div id="out"></div>
 
 <script>
-  const tbody = document.getElementById('tbody');
-  const statusEl = document.getElementById('status');
-  const qEl = document.getElementById('q');
-  const msg = document.getElementById('msg');
+const out = document.getElementById('out');
+const info = document.getElementById('info');
 
-  function pill(status){
-    if(status === 'accepted') return `<span class="pill ok">accepted</span>`;
-    if(status === 'declined') return `<span class="pill bad">declined</span>`;
-    return `<span class="pill">pending</span>`;
+function esc(s){return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+
+async function load(){
+  info.textContent='Učitavanje...';
+  const status = document.getElementById('status').value;
+  const q = document.getElementById('q').value;
+
+  const url = new URL('/admin/api/events', window.location.origin);
+  if(status) url.searchParams.set('status', status);
+  if(q) url.searchParams.set('q', q);
+
+  const res = await fetch(url);
+  if(!res.ok){
+    out.innerHTML = '<div class="empty">Greška: ' + res.status + '</div>';
+    info.textContent='';
+    return;
+  }
+  const data = await res.json();
+  info.textContent = 'Ukupno: ' + data.length;
+
+  if(!data.length){
+    out.innerHTML = '<div class="empty">Nema zapisa.</div>';
+    return;
   }
 
-  async function api(path, opts={}){
-    const res = await fetch(path, opts);
-    if(res.status === 401){
-      throw new Error('401 Unauthorized (Basic Auth)');
-    }
-    if(!res.ok){
-      const t = await res.text();
-      throw new Error(t || ('HTTP '+res.status));
-    }
-    return res.json();
+  let html = '<table><thead><tr>'
+    + '<th>ID</th><th>Status</th><th>Mladenci</th><th>Datum</th><th>Lokacija</th><th>Kontakt</th><th>Paket</th><th>Token link</th><th>Akcije</th>'
+    + '</tr></thead><tbody>';
+
+  for(const e of data){
+    const pill = '<span class="pill '+esc(e.status)+'">'+esc(e.status)+'</span>';
+    const tokenLink = e.token ? ('<a href="/offer-preview?token='+encodeURIComponent(e.token)+'" target="_blank">preview</a>') : '';
+    const pkg = e.selected_package ? esc(e.selected_package) : '<span class="muted">—</span>';
+
+    html += '<tr>'
+      + '<td>'+e.id+'</td>'
+      + '<td>'+pill+'</td>'
+      + '<td><b>'+esc(e.first_name)+' '+esc(e.last_name)+'</b></td>'
+      + '<td>'+esc(e.wedding_date)+'</td>'
+      + '<td>'+esc(e.venue)+'<div class="muted">gostiju: '+esc(String(e.guest_count))+'</div></td>'
+      + '<td>'+esc(e.email)+'<div class="muted">'+esc(e.phone)+'</div></td>'
+      + '<td>'+pkg+'</td>'
+      + '<td>'+tokenLink+'</td>'
+      + '<td class="actions">'
+      + '<button onclick="setStatus('+e.id+',\'accepted\')">Accept</button>'
+      + '<button onclick="setStatus('+e.id+',\'declined\')">Decline</button>'
+      + '<button onclick="setStatus('+e.id+',\'pending\')">Pending</button>'
+      + '</td>'
+      + '</tr>';
   }
+  html += '</tbody></table>';
+  out.innerHTML = html;
+}
 
-  function escapeHtml(s){
-    return (s || '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  }
-
-  function render(items){
-    if(!items.length){
-      tbody.innerHTML = `<tr><td colspan="10" style="color:var(--muted); padding:18px;">Nema rezultata.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = items.map(e=>{
-      const fullName = `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}`;
-      const contact = `
-        <div><b>${escapeHtml(e.email)}</b></div>
-        <div style="color:var(--muted);">${escapeHtml(e.phone)}</div>
-        <div style="margin-top:8px; color:var(--muted);"><b>Napomena:</b><br>${escapeHtml(e.message || '').slice(0,180)}${(e.message||'').length>180?'…':''}</div>
-      `;
-      const tokenLink = `<div class="mono">${escapeHtml(e.token)}</div>
-        <div><a href="/offer-preview?token=${encodeURIComponent(e.token)}" target="_blank">Preview</a></div>
-      `;
-
-      const pkg = escapeHtml(e.selected_package || '');
-      const pkgText = pkg ? `<span class="pill">${pkg}</span>` : `<span class="pill" style="opacity:.7">—</span>`;
-
-      return `
-        <tr>
-          <td>${e.id}</td>
-          <td>${pill(e.status)}</td>
-          <td>${fullName}</td>
-          <td>${escapeHtml(e.wedding_date)}</td>
-          <td>${escapeHtml(e.venue)}</td>
-          <td>${e.guest_count}</td>
-          <td>${contact}</td>
-          <td>${pkgText}</td>
-          <td>${tokenLink}</td>
-          <td>
-            <div class="actions">
-              <button onclick="acceptEvent(${e.id})">Accept</button>
-              <button onclick="declineEvent(${e.id})">Decline</button>
-              <button onclick="resend(${e.id})">Resend</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
-
-  async function load(){
-    msg.textContent = 'Učitavanje...';
-    const s = statusEl.value;
-    const q = qEl.value.trim();
-    const url = new URL('/admin/api/events', location.origin);
-    if(s) url.searchParams.set('status', s);
-    if(q) url.searchParams.set('q', q);
-
-    try{
-      const data = await api(url.toString());
-      render(data.items || []);
-      msg.textContent = `Učitano: ${(data.items||[]).length}`;
-    }catch(err){
-      tbody.innerHTML = `<tr><td colspan="10" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
-      msg.textContent = '';
-    }
-  }
-
-  async function acceptEvent(id){
-    if(!confirm('Accept (admin) ?')) return;
-    try{
-      await api(`/admin/api/events/${id}/accept`, {method:'POST'});
-      await load();
-    }catch(err){ alert(err); }
-  }
-
-  async function declineEvent(id){
-    if(!confirm('Decline (admin) ?')) return;
-    try{
-      await api(`/admin/api/events/${id}/decline`, {method:'POST'});
-      await load();
-    }catch(err){ alert(err); }
-  }
-
-  async function resend(id){
-    if(!confirm('Resend offer email?')) return;
-    try{
-      await api(`/admin/api/events/${id}/resend`, {method:'POST'});
-      await load();
-      alert('Resend OK');
-    }catch(err){ alert(err); }
-  }
-
-  document.getElementById('refresh').addEventListener('click', load);
-  document.getElementById('logout').addEventListener('click', ()=>{
-    // trigger basic-auth "logout" (browser-dependent)
-    fetch('/admin/api/events', {headers:{'Authorization':'Basic logout'}}).finally(()=>location.reload());
+async function setStatus(id, status){
+  const res = await fetch('/admin/api/events/'+id+'/status', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
   });
+  if(!res.ok){
+    alert('Greška: ' + res.status);
+    return;
+  }
+  await load();
+}
 
-  window.acceptEvent = acceptEvent;
-  window.declineEvent = declineEvent;
-  window.resend = resend;
-
-  load();
+document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('logout').addEventListener('click', async () => {
+  await fetch('/admin/logout', {method:'POST'});
+  location.reload();
+});
+load();
 </script>
 </body>
 </html>
