@@ -280,6 +280,19 @@ def send_email(to_email: str, subject: str, body_html: str):
     return send_email_resend(to_email, subject, body_html)
 
 
+def get_reminder_recipient(e: "Event", kind: str) -> str:
+    """Routing rules:
+    - TEST_MODE: everything to catering
+    - event_2d: always to catering
+    - offer_3d/offer_7d: to client (pending only)
+    """
+    if TEST_MODE:
+        return CATERING_TEAM_EMAIL
+    if kind == "event_2d":
+        return CATERING_TEAM_EMAIL
+    return e.email
+
+
 PACKAGE_LABELS = {
     "classic": "Classic",
     "premium": "Premium",
@@ -511,8 +524,6 @@ def reminder_job():
             if not base:
                 continue
 
-            recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
-
             # 3-day (or REMINDER_DAY_1) reminder
             if e.reminder_3d_sent_at is None and (now - base).days >= REMINDER_DAY_1:
                 # Claim atomically
@@ -527,7 +538,7 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email(get_reminder_recipient(e, "offer_3d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_3d)", extra={"event_id": e.id})
                 continue
@@ -545,7 +556,7 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email(get_reminder_recipient(e, "offer_7d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_7d)", extra={"event_id": e.id})
 
@@ -560,7 +571,9 @@ def reminder_job():
             if now < due_at:
                 continue
 
-            recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+            recipient = get_reminder_recipient(e, "event_2d")
+
+            # internal recipient (catering team)
             res = db.execute(
                 text(
                     "UPDATE events SET event_2d_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
@@ -979,7 +992,8 @@ def admin_send_reminder_now(
         raise HTTPException(status_code=400, detail="No reminder due for this event")
 
     now = datetime.utcnow()
-    recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+    recipient = get_reminder_recipient(e, kind)
+    # recipient determined per reminder kind (offer_3d/offer_7d)
 
     if kind == "offer_3d":
         res = db.execute(
