@@ -11,7 +11,7 @@ from typing import Generator, Optional
 import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, EmailStr, Field
@@ -64,7 +64,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 
-# TEST MODE: if "1" or "true" -> all outgoing "offer" emails go only to CATERING_TEAM_EMAIL
+# TEST MODE: if "1" or "true" -> offer emails go only to CATERING_TEAM_EMAIL
 TEST_MODE = os.getenv("TEST_MODE", "1").lower() in ("1", "true", "yes", "on")
 
 # Reminders
@@ -271,7 +271,7 @@ PACKAGE_LABELS = {
 def render_offer_html(e: Event) -> str:
     """
     If frontend/offer.html exists, we load it and replace placeholders.
-    Otherwise, we use a built-in rich template (the "good one" you had).
+    Otherwise, we use a built-in rich template.
     """
     template_path = os.path.join("frontend", "offer.html")
     if os.path.exists(template_path):
@@ -596,7 +596,7 @@ def offer_preview(token: str = Query(...), db: Session = Depends(db_session)):
 
 
 # ======================
-# ACCEPT / DECLINE
+# ACCEPT / DECLINE (couple)
 # ======================
 
 @app.get("/accept", response_class=HTMLResponse)
@@ -626,8 +626,7 @@ def accept_get(
 
     page = f"""<!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Prihvaćanje ponude</title>
-</head>
+<title>Prihvaćanje ponude</title></head>
 <body style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;margin:0;padding:24px">
   <div style="max-width:720px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px">
     <h2 style="margin:0 0 6px">Prihvaćanje ponude</h2>
@@ -690,8 +689,7 @@ def decline_get(token: str = Query(...), db: Session = Depends(db_session)):
 
     page = f"""<!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Odbijanje ponude</title>
-</head>
+<title>Odbijanje ponude</title></head>
 <body style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;margin:0;padding:24px">
   <div style="max-width:720px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px">
     <h2 style="margin:0 0 6px">Odbijanje ponude</h2>
@@ -828,6 +826,19 @@ def admin_events(
     }
 
 
+def _apply_status(e: Event, status: str):
+    status = status.strip().lower()
+    if status not in ("pending", "accepted", "declined"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    e.status = status
+    e.accepted = status == "accepted"
+    if status != "accepted":
+        # keep selected_package but accepted flag false; you can clear if you want:
+        # e.selected_package = None
+        pass
+    e.updated_at = datetime.utcnow()
+
+
 @app.post("/admin/api/events/{event_id}/status")
 def admin_set_status(
     event_id: int,
@@ -842,13 +853,43 @@ def admin_set_status(
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
 
-    status = payload.status.strip().lower()
-    if status not in ("pending", "accepted", "declined"):
-        raise HTTPException(status_code=400, detail="Invalid status")
+    _apply_status(e, payload.status)
+    db.commit()
+    return {"ok": True}
 
-    e.status = status
-    e.accepted = status == "accepted"
-    e.updated_at = datetime.utcnow()
+
+# --- OLD ENDPOINTS (for your old admin.html compatibility) ---
+@app.post("/admin/api/events/{event_id}/accept")
+def admin_accept_event(
+    event_id: int,
+    request: Request,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    _require_admin(request)
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Not found")
+    _apply_status(e, "accepted")
+    # If no package chosen by couple yet, show placeholder
+    if not e.selected_package:
+        e.selected_package = "—"
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/admin/api/events/{event_id}/decline")
+def admin_decline_event(
+    event_id: int,
+    request: Request,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    _require_admin(request)
+    e = db.query(Event).filter_by(id=event_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Not found")
+    _apply_status(e, "declined")
     db.commit()
     return {"ok": True}
 
