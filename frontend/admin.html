@@ -93,8 +93,13 @@
     .pill.ok{border-color:rgba(50,210,150,.35); color:#b7ffdf}
     .pill.bad{border-color:rgba(255,90,95,.35); color:#ffd0d1}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+.ellipsis{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.nowrap{white-space:nowrap}
+
     a{color:#8bd6ff}
-    .actions{display:flex; gap:8px; flex-wrap:wrap}
+    .actions{display:flex; gap:8px; flex-wrap:nowrap; align-items:center; white-space:nowrap}
+.actions button{padding:6px 10px; font-size:12px; border-radius:10px}
+.actions form{margin:0}
     .muted{color:var(--muted); font-size:12px}
     .nowrap{white-space:nowrap}
   </style>
@@ -186,18 +191,19 @@
     }
     tbody.innerHTML = items.map(e => {
       const fullName = `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}`;
+      const note = (e.message || '').trim();
       const contact = `
-        <div><b>${escapeHtml(e.email)}</b></div>
-        <div class="muted">${escapeHtml(e.phone)}</div>
-        <div style="margin-top:8px" class="muted">
-          <b>Napomena:</b><br>${escapeHtml((e.message || '')).slice(0,180)}${(e.message||'').length>180?'…':''}
-        </div>
+        <div class="nowrap ellipsis" title="${escapeHtml(e.email)}"><b>${escapeHtml(e.email)}</b></div>
+        <div class="nowrap muted" title="${escapeHtml(e.phone || '')}">${escapeHtml(e.phone || '')}</div>
+        ${note ? `<div class="muted nowrap" title="Napomena: ${escapeHtml(note)}">📝</div>` : ``}
       `;
       const pkg = (e.selected_package || '').trim();
       const pkgHtml = pkg ? `<span class="pill">${escapeHtml(pkg)}</span>` : `<span class="pill" style="opacity:.7">—</span>`;
       const token = e.token || '';
+      const token = e.token || '';
+      const tokenShort = token ? (token.slice(0,10) + '…') : '';
       const tokenLink = `
-        <div class="mono">${escapeHtml(token)}</div>
+        <div class="mono nowrap" title="${escapeHtml(token)}">${escapeHtml(tokenShort)}</div>
         <div class="nowrap"><a href="/offer-preview?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Preview</a></div>
       `;
       return `
@@ -218,19 +224,6 @@
 <td>${tokenLink}</td>
 <td>
   <div class="actions">
-    <button onclick="acceptEvent(${e.id})">Accept</button>
-    <button onclick="declineEvent(${e.id})">Decline</button>
-    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
-    <button onclick="resendOffer(${e.id})">Resend</button>
-    ${e.next_reminder_kind ? `<button onclick="sendReminderNow(${e.id})">Send reminder</button>` : ``}
-  </div>
-</td>
-
-              <button onclick="acceptEvent(${e.id})">Accept</button>
-              <button onclick="declineEvent(${e.id})">Decline</button>
-              <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
-              <button onclick="resendOffer(${e.id})">Resend</button>
-            </div>
           </td>
         </tr>
       `;
