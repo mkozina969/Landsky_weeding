@@ -132,12 +132,15 @@
         <th style="width:90px;">Gosti</th>
         <th style="width:260px;">Kontakt</th>
         <th style="width:120px;">Paket</th>
+        <th style="width:80px;">Podsjetnici</th>
+        <th style="width:170px;">Zadnji email</th>
+        <th style="width:170px;">Sljedeći podsjetnik</th>
         <th style="width:220px;">Token / link</th>
-        <th style="width:260px;">Akcije</th>
+        <th style="width:320px;">Akcije</th>
       </tr>
     </thead>
     <tbody id="tbody">
-      <tr><td colspan="10" class="muted" style="padding:18px;">Učitavanje...</td></tr>
+      <tr><td colspan="13" class="muted" style="padding:18px;">Učitavanje...</td></tr>
     </tbody>
   </table>
 
@@ -178,7 +181,7 @@
 
   function render(items){
     if(!items.length){
-      tbody.innerHTML = `<tr><td colspan="10" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
       return;
     }
     tbody.innerHTML = items.map(e => {
@@ -206,10 +209,23 @@
           <td>${escapeHtml(e.venue)}</td>
           <td>${e.guest_count}</td>
           <td>${contact}</td>
-          <td>${pkgHtml}</td>
-          <td>${tokenLink}</td>
-          <td>
-            <div class="actions">
+<td>${pkgHtml}</td>
+<td class="nowrap">${(e.reminder_count ?? 0)}</td>
+<td class="nowrap">${escapeHtml(e.last_email_sent_at || '—')}</td>
+<td>
+  ${e.next_reminder_due ? `<div class="nowrap">${escapeHtml(e.next_reminder_due)}</div><div class="muted" style="font-size:12px;">${escapeHtml(e.next_reminder_kind||'')}</div>` : `<span class="muted">—</span>`}
+</td>
+<td>${tokenLink}</td>
+<td>
+  <div class="actions">
+    <button onclick="acceptEvent(${e.id})">Accept</button>
+    <button onclick="declineEvent(${e.id})">Decline</button>
+    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
+    <button onclick="resendOffer(${e.id})">Resend</button>
+    ${e.next_reminder_kind ? `<button onclick="sendReminderNow(${e.id})">Send reminder</button>` : ``}
+  </div>
+</td>
+
               <button onclick="acceptEvent(${e.id})">Accept</button>
               <button onclick="declineEvent(${e.id})">Decline</button>
               <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
@@ -235,7 +251,7 @@
       render(items);
       msgEl.textContent = `Učitano: ${items.length}`;
     }catch(err){
-      tbody.innerHTML = `<tr><td colspan="10" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
       msgEl.textContent = '';
     }
   }
@@ -269,10 +285,19 @@
     alert('Resend OK');
   }
 
+
+async function sendReminderNow(id){
+  if(!confirm('Send reminder now?')) return;
+  await apiJson(`/admin/api/events/${id}/send-reminder-now`, { method:'POST' });
+  await load();
+  alert('Reminder sent (or already sent).');
+}
+
   window.setStatus = setStatus;
   window.acceptEvent = acceptEvent;
   window.declineEvent = declineEvent;
   window.resendOffer = resendOffer;
+  window.sendReminderNow = sendReminderNow;
 
   document.getElementById('refresh').addEventListener('click', load);
   document.getElementById('logout').addEventListener('click', async () => {
