@@ -6,127 +6,325 @@
   <title>Landsky Catering – Upit za vjenčanje</title>
   <style>
     :root{
-      --bg1:#0b0f14; --bg2:#111827;
-      --card: rgba(17,24,39,.65);
+      --bg1:#0b0f14;
+      --bg2:#111827;
+      --card: rgba(17,24,39,.62);
       --stroke: rgba(255,255,255,.12);
-      --text:#e5e7eb; --muted:#9ca3af;
-      --accent:#f5c451; --accent2:#f59e0b;
-      --shadow: 0 25px 60px rgba(0,0,0,.45);
-      --radius:18px; --field: rgba(0,0,0,.25);
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#f5c451;
+      --accent2:#f59e0b;
+      --ok:#22c55e;
+      --err:#ef4444;
+      --shadow: 0 26px 70px rgba(0,0,0,.55);
+      --radius:18px;
+      --field: rgba(0,0,0,.28);
     }
     *{box-sizing:border-box}
     body{
-      margin:0; color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.15), transparent 55%),
-                  radial-gradient(900px 600px at 80% 0%, rgba(59,130,246,.10), transparent 55%),
-                  linear-gradient(120deg, var(--bg1), var(--bg2));
-      min-height:100vh; display:flex; align-items:center; justify-content:center;
-      padding:28px 18px;
+      margin:0;
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(245,196,81,.18), transparent 55%),
+        radial-gradient(900px 600px at 80% 0%, rgba(59,130,246,.12), transparent 55%),
+        linear-gradient(120deg, var(--bg1), var(--bg2));
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:34px 18px;
     }
-    .wrap{width: min(1000px, 100%);}
-    .top{display:flex; align-items:center; gap:18px; margin-bottom:18px; flex-wrap:wrap}
-    .logo{
-      width:150px;height:auto;border-radius:16px;
-      background: rgba(255,255,255,.06);
-      border:1px solid var(--stroke);
+    .wrap{width: min(1040px, 100%);}
+
+    /* Top hero */
+    .hero{
+      display:grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap:16px;
+      margin-bottom:16px;
+      align-items:stretch;
+    }
+    .brand{
+      position:relative;
+      border-radius: 22px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.05);
       box-shadow: var(--shadow);
-      display:grid; place-items:center; overflow:hidden;
+      overflow:hidden;
+      padding:18px 18px 16px 18px;
+      backdrop-filter: blur(12px);
+      min-height: 160px;
     }
-    .logo img{width:140px;height:auto;filter: invert(1) brightness(1.15) contrast(1.05);opacity:.95;}
-    h1{font-size: clamp(26px, 3vw, 36px); margin:0 0 6px 0;}
-    .sub{color:var(--muted); margin:0;}
-    .adminlink{margin-left:auto;font-size:13px;color:var(--muted);}
+    .brand:before{
+      content:"";
+      position:absolute; inset:-2px;
+      background:
+        radial-gradient(700px 220px at 10% 20%, rgba(245,196,81,.22), transparent 60%),
+        radial-gradient(520px 220px at 90% 10%, rgba(59,130,246,.18), transparent 60%);
+      pointer-events:none;
+      opacity:.9;
+    }
+    .brand-inner{position:relative; display:flex; gap:14px; align-items:center;}
+    .logo{
+      width:76px;
+      height:76px;
+      border-radius: 16px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.14);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px;
+      flex: 0 0 auto;
+    }
+    /* ✅ smaller, clean logo */
+    .logo img{
+      width:58px;
+      height:auto;
+      max-width:100%;
+      filter: invert(1) brightness(1.1) contrast(1.05);
+      opacity:.95;
+      display:block;
+    }
+    h1{
+      font-size: clamp(22px, 2.6vw, 34px);
+      margin:0 0 6px 0;
+      letter-spacing:.2px;
+    }
+    .sub{
+      color:var(--muted);
+      margin:0;
+      line-height:1.45;
+      font-size: 13.5px;
+    }
+    .meta{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      position:relative;
+      z-index:1;
+    }
+    .chip{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding:8px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.22);
+      color: rgba(229,231,235,.9);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .dot{
+      width:8px;height:8px;border-radius:999px;
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 0 4px rgba(245,196,81,.12);
+    }
+    .adminlink{
+      margin-left:auto;
+      font-size:12px;
+      color:var(--muted);
+    }
     .adminlink a{color:var(--accent); text-decoration:none}
+    .adminlink a:hover{text-decoration:underline}
+
+    .side{
+      border-radius: 22px;
+      border: 1px solid var(--stroke);
+      background: rgba(17,24,39,.55);
+      box-shadow: var(--shadow);
+      padding:18px;
+      backdrop-filter: blur(12px);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:10px;
+    }
+    .side h2{
+      margin:0;
+      font-size:16px;
+      letter-spacing:.2px;
+    }
+    .side p{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .side ul{
+      margin:6px 0 0 0;
+      padding-left:18px;
+      color: rgba(229,231,235,.9);
+      font-size:13px;
+      line-height:1.5;
+    }
+    .side li{margin:4px 0}
+
+    /* Form card */
     .card{
       background: var(--card);
       border: 1px solid var(--stroke);
-      border-radius: var(--radius);
+      border-radius: 22px;
       box-shadow: var(--shadow);
-      padding: 22px;
+      padding: 20px;
       backdrop-filter: blur(12px);
     }
-    .grid{display:grid; grid-template-columns: 1fr 1fr; gap:14px 16px;}
-    label{display:block; font-size:13px; color:var(--muted); margin:2px 0 6px;}
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px 16px;
+    }
+    label{
+      display:block;
+      font-size:12.5px;
+      color:var(--muted);
+      margin:2px 0 6px;
+    }
     input, textarea{
-      width:100%; padding: 12px;
+      width:100%;
+      padding: 12px 12px;
       border-radius: 12px;
-      border:1px solid var(--stroke);
+      border:1px solid rgba(255,255,255,.14);
       background: var(--field);
       color: var(--text);
       outline:none;
+      transition: border-color .15s ease, transform .05s ease;
+    }
+    input:focus, textarea:focus{
+      border-color: rgba(245,196,81,.55);
+      box-shadow: 0 0 0 4px rgba(245,196,81,.10);
     }
     textarea{min-height:110px; resize:vertical}
     .span2{grid-column: 1 / -1;}
-    @media (max-width: 820px){ .grid{grid-template-columns:1fr;} }
-    .actions{display:flex; gap:12px; align-items:center; margin-top:14px; flex-wrap:wrap;}
-    button{
-      border:none; cursor:pointer;
-      padding:12px 16px; border-radius:12px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color:#111827; font-weight:700;
-      box-shadow: 0 12px 25px rgba(245,196,81,.20);
+
+    .actions{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin-top:14px;
+      flex-wrap:wrap;
     }
-    .hint{color:var(--muted); font-size:13px;}
-    .msg{margin-top:14px;border-radius:14px;border:1px solid var(--stroke);padding:14px;background:rgba(0,0,0,.25);display:none}
+    button{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#111827;
+      font-weight:800;
+      letter-spacing:.2px;
+      box-shadow: 0 12px 28px rgba(245,196,81,.20);
+      transition: transform .08s ease, filter .15s ease;
+    }
+    button:hover{filter:brightness(1.04)}
+    button:active{transform: translateY(1px)}
+
+    .hint{color:var(--muted); font-size:13px; line-height:1.4}
+    .msg{
+      margin-top:14px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      padding:14px;
+      background: rgba(0,0,0,.25);
+      display:none;
+    }
+    .msg.ok{border-color: rgba(34,197,94,.35)}
+    .msg.err{border-color: rgba(239,68,68,.35)}
     .msg a{color:#93c5fd}
-    .ok{border-color: rgba(34,197,94,.35)}
-    .err{border-color: rgba(239,68,68,.35)}
+
+    @media (max-width: 920px){
+      .hero{grid-template-columns: 1fr; }
+      .adminlink{margin-left:0}
+    }
+    @media (max-width: 820px){
+      .grid{grid-template-columns: 1fr;}
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
-      <div class="" aria-hidden="true">
-        <img src="./logo.png" alt="Landsky logo" />
+
+    <section class="hero">
+      <div class="brand">
+        <div class="brand-inner">
+          <div class="logo" aria-hidden="true">
+            <!-- If your logo is in frontend/logo.png, use ./logo.png -->
+            <img src="./logo.png" alt="Landsky logo" />
+          </div>
+          <div style="min-width:0">
+            <h1>Upit za vjenčanje</h1>
+            <p class="sub">Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit. Odgovorit ćemo s ponudom i detaljima.</p>
+
+            <div class="meta">
+              <span class="chip"><span class="dot"></span> Brzi odgovor</span>
+              <span class="chip">📍 Zagreb i okolica</span>
+              <span class="chip">🍸 Cocktail catering</span>
+              <span class="adminlink">Admin: <a href="/admin">/admin</a></span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div>
-        <h1>Upit za vjenčanje</h1>
-        <p class="sub">Ispunite podatke, dodajte napomenu/pitanja i pošaljite upit.</p>
-      </div>
-      <div class="adminlink">Admin: <a href="/admin">/admin</a></div>
-    </div>
+
+      <aside class="side">
+        <h2>Što se događa nakon slanja?</h2>
+        <p>Na email dobivate ponudu s linkovima za prihvaćanje/odbijanje i odabir paketa.</p>
+        <ul>
+          <li>Odaberite paket (Classic / Premium / Signature)</li>
+          <li>Potvrdite klikom u mailu</li>
+          <li>Mi se javljamo s dogovorom detalja</li>
+        </ul>
+      </aside>
+    </section>
 
     <div class="card">
       <form id="f">
         <div class="grid">
           <div>
             <label for="first_name">Ime</label>
-            <input id="first_name" required />
+            <input id="first_name" required placeholder="npr. Mario" />
           </div>
           <div>
             <label for="last_name">Prezime</label>
-            <input id="last_name" required />
+            <input id="last_name" required placeholder="npr. Kozina" />
           </div>
+
           <div>
             <label for="wedding_date">Datum vjenčanja</label>
             <input id="wedding_date" type="date" required />
           </div>
           <div>
             <label for="venue">Lokacija / Sala</label>
-            <input id="venue" required />
+            <input id="venue" required placeholder="npr. Sala Korana" />
           </div>
+
           <div>
             <label for="guest_count">Broj gostiju</label>
-            <input id="guest_count" type="number" min="1" required />
+            <input id="guest_count" type="number" min="1" required placeholder="npr. 120" />
           </div>
           <div>
             <label for="email">E-mail</label>
-            <input id="email" type="email" required />
+            <input id="email" type="email" required placeholder="npr. mladenci@email.com" />
           </div>
+
           <div class="span2">
             <label for="phone">Telefon</label>
-            <input id="phone" required />
+            <input id="phone" required placeholder="npr. +385 99 123 4567" />
           </div>
+
           <div class="span2">
             <label for="message">Napomena / Pitanja (opcionalno)</label>
-            <textarea id="message"></textarea>
+            <textarea id="message" placeholder="Npr. bezalkoholni bar, okvirna cijena, posebne želje..."></textarea>
           </div>
         </div>
 
         <div class="actions">
           <button type="submit">Pošalji upit</button>
-          <span class="hint">U test fazi može se pojaviti “preview link”.</span>
+          <span class="hint">Nakon slanja prikazat ćemo potvrdu. U test fazi može se pojaviti i “preview link”.</span>
         </div>
 
         <div id="msg" class="msg"></div>
@@ -156,7 +354,7 @@ form.addEventListener('submit', async (e) => {
     guest_count: parseInt(document.getElementById('guest_count').value || '0', 10),
     email: document.getElementById('email').value,
     phone: document.getElementById('phone').value,
-    message: document.getElementById('message').value
+    message: document.getElementById('message').value,
   };
 
   try{
