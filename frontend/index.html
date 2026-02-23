@@ -52,7 +52,7 @@
     }
     .logo img{
       width:70px;height:auto;
-      /* Logo je crn pa ga "posvijetlimo" na tamnoj pozadini */
+      /* Logo is dark; brighten for dark background */
       filter: invert(1) brightness(1.15) contrast(1.05);
       opacity:.95;
     }
@@ -130,6 +130,7 @@
   <div class="wrap">
     <div class="top">
       <div class="logo" aria-hidden="true">
+        <!-- Put your logo at: frontend/assets/logo.png -->
         <img src="./assets/logo.png" alt="Landsky logo" />
       </div>
       <div>
@@ -175,8 +176,8 @@
           </div>
 
           <div class="span2">
-            <label for="notes">Napomena / Pitanja (opcionalno)</label>
-            <textarea id="notes" placeholder="Npr. veganske opcije, bezalkoholni bar, okvirna cijena po osobi, posebne želje..."></textarea>
+            <label for="message">Napomena / Pitanja (opcionalno)</label>
+            <textarea id="message" placeholder="Npr. veganske opcije, bezalkoholni bar, okvirna cijena po osobi, posebne želje..."></textarea>
           </div>
         </div>
 
@@ -202,6 +203,7 @@ function show(type, html){
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   msg.style.display = 'none';
+
   const payload = {
     first_name: document.getElementById('first_name').value,
     last_name: document.getElementById('last_name').value,
@@ -210,7 +212,7 @@ form.addEventListener('submit', async (e) => {
     guest_count: parseInt(document.getElementById('guest_count').value || '0', 10),
     email: document.getElementById('email').value,
     phone: document.getElementById('phone').value,
-    notes: document.getElementById('notes').value,
+    message: document.getElementById('message').value, // backend expects "message"
   };
 
   try{
@@ -219,7 +221,7 @@ form.addEventListener('submit', async (e) => {
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
+    const data = await res.json().catch(()=> ({}));
     if(!res.ok){
       show('err', '<b>Greška:</b> ' + (data?.detail?.[0]?.msg || data?.detail || 'Neuspješno slanje.'));
       return;
@@ -227,7 +229,7 @@ form.addEventListener('submit', async (e) => {
 
     let extra = '';
     if(data.preview_url){
-      extra = '<br><br><b>TEST preview:</b><br><a href="'+data.preview_url+'" target="_blank">'+data.preview_url+'</a>';
+      extra = '<br><br><b>TEST preview:</b><br><a href="'+data.preview_url+'" target="_blank" rel="noopener">'+data.preview_url+'</a>';
     }
     show('ok', '<b>Vaš upit je zaprimljen.</b>' + extra);
     form.reset();
