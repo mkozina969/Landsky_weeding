@@ -274,14 +274,17 @@ def render_offer_html(e: Event) -> str:
             .replace("{{BASE_URL}}", BASE_URL)
         )
 
-    logo_url = f"{BASE_URL}/frontend/logo.png"
+    # Default (built-in) offer email
+    logo_url = f"{BASE_URL}/frontend/assets/logo.png" if os.path.exists(os.path.join("frontend","assets","logo.png")) else f"{BASE_URL}/frontend/logo.png"
     cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
     bar_img = f"{BASE_URL}/frontend/bar.jpeg"
     cigare_img = f"{BASE_URL}/frontend/cigare.png"
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
+
     msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
+    msg_html = html.escape(msg).replace("
+", "<br>") if msg else "(nema)"
 
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
@@ -313,6 +316,22 @@ def render_offer_html(e: Event) -> str:
         <div style="margin-top:8px;"><b>Napomena / pitanja:</b><br>{msg_html}</div>
       </div>
 
+      <p style="margin:0 0 10px 0;">
+        U ponudi su omiljeni klasici kao i pristup osmišljavanja koktela sukladno vašem događanju.
+      </p>
+
+      <div style="margin:12px 0;">
+        <div style="font-weight:700; margin-bottom:6px;">Ponuda uključuje</div>
+        <ul style="margin:0; padding-left:18px;">
+          <li>Profesionalnog barmena</li>
+          <li>Event menu s koktelima prilagođen temi eventa (po želji)</li>
+          <li>Staklene čaše + piće (alkoholno i bezalkoholno)</li>
+          <li>Premium led / konzumni led</li>
+          <li>Dekoracije</li>
+          <li>Šank</li>
+        </ul>
+      </div>
+
       <div style="background:#fff7e6; border:1px solid #f3e3bf; border-radius:12px; padding:12px 14px; margin:14px 0;">
         <div style="font-weight:700; margin-bottom:6px;">Cijene paketa</div>
         <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
@@ -337,6 +356,15 @@ def render_offer_html(e: Event) -> str:
         Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.
       </p>
 
+      <p style="margin:0 0 14px 0;">
+        Rado Vas pozivamo i na prezentaciju koktela u našem Landsky Baru (Ozaljska 146),
+        gdje ćemo Vam detaljno predstaviti našu uslugu i odabrati najbolje za vaš event.
+      </p>
+
+      <div style="margin:14px 0;">
+        📸 Fotografija bara: <a href="{bar_img}">{bar_img}</a>
+      </div>
+
       <div style="border-top:1px solid #eee; margin-top:16px; padding-top:14px;">
         <div style="font-weight:700; margin-bottom:6px;">Potvrda ponude</div>
         <p style="margin:0 0 10px 0;">Molimo potvrdite ponudu klikom:</p>
@@ -347,6 +375,13 @@ def render_offer_html(e: Event) -> str:
         <p style="margin:10px 0 0; color:#6b7280; font-size:12px;">
           Napomena: kod prihvaćanja ćete odabrati paket (Classic / Premium / Signature).
         </p>
+      </div>
+
+      <div style="margin-top:18px; color:#333;">
+        Srdačan pozdrav,<br>
+        <b>Landsky Catering</b><br>
+        E-mail: <a href="mailto:catering@landskybar.com">catering@landskybar.com</a><br>
+        Telefon: 091/594/6515
       </div>
     </div>
   </div>
