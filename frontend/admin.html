@@ -164,7 +164,6 @@
       const t = await res.text();
       throw new Error(t || ('HTTP '+res.status));
     }
-    // some endpoints might return empty; we handle JSON only where expected
     return await res.json();
   }
 
@@ -217,8 +216,8 @@
           <td>${tokenLink}</td>
           <td>
             <div class="actions">
-              <button onclick="setStatus(${e.id}, 'accepted')">Accept</button>
-              <button onclick="setStatus(${e.id}, 'declined')">Decline</button>
+              <button onclick="acceptEvent(${e.id})">Accept</button>
+              <button onclick="declineEvent(${e.id})">Decline</button>
               <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
               <button onclick="resendOffer(${e.id})">Resend</button>
             </div>
@@ -262,6 +261,27 @@
     }
   }
 
+  // OLD endpoints support (accept/decline)
+  async function acceptEvent(id){
+    if(!confirm(`Accept za ID ${id}?`)) return;
+    try{
+      await apiJson(`/admin/api/events/${id}/accept`, { method:'POST' });
+      await load();
+    }catch(err){
+      alert(String(err));
+    }
+  }
+
+  async function declineEvent(id){
+    if(!confirm(`Decline za ID ${id}?`)) return;
+    try{
+      await apiJson(`/admin/api/events/${id}/decline`, { method:'POST' });
+      await load();
+    }catch(err){
+      alert(String(err));
+    }
+  }
+
   async function resendOffer(id){
     if(!confirm('Resend offer email?')) return;
     try{
@@ -275,22 +295,17 @@
 
   // Expose for inline onclick
   window.setStatus = setStatus;
+  window.acceptEvent = acceptEvent;
+  window.declineEvent = declineEvent;
   window.resendOffer = resendOffer;
 
   document.getElementById('refresh').addEventListener('click', load);
   document.getElementById('logout').addEventListener('click', async () => {
-    try{
-      await apiNoJson('/admin/logout', {method:'POST'});
-    }catch(e){
-      // ignore
-    }
+    try{ await apiNoJson('/admin/logout', {method:'POST'}); }catch(e){}
     location.reload();
   });
 
-  // Quality-of-life: Enter triggers refresh
-  qEl.addEventListener('keydown', (ev) => {
-    if(ev.key === 'Enter') load();
-  });
+  qEl.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') load(); });
   statusEl.addEventListener('change', load);
 
   load();
