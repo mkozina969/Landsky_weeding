@@ -1,17 +1,4 @@
-<!
-  async function showLogs(id){
-    try{
-      const logs = await apiJson(`/admin/api/events/${id}/email-logs`);
-      const w = window.open('', '_blank');
-      const safe = escapeHtml(JSON.stringify(logs, null, 2));
-      w.document.write(`<pre style="white-space:pre-wrap; font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; padding:16px;">${safe}</pre>`);
-      w.document.close();
-    }catch(err){
-      alert('Greška (logs): ' + (err?.message || err));
-    }
-  }
-
-doctype html>
+<!doctype html>
 <html lang="hr">
 <head>
   <meta charset="utf-8" />
@@ -251,7 +238,7 @@ doctype html>
 	    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
 	    <button onclick="resendOffer(${e.id})">Resend</button>
 	    ${sendReminderBtn}
-	    <button onclick="showLogs(${e.id})">Logs</button>
+        <button onclick="openLogs(${e.id})">Logs</button>
 	  </div>
           </td>
         </tr>
@@ -308,6 +295,42 @@ doctype html>
   }
 
 
+
+async function openLogs(id){
+  try{
+    const data = await apiJson(`/admin/api/events/${id}/email-logs`);
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('Popup blocked');
+      return;
+    }
+    const safe = JSON.stringify(data, null, 2)
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+
+    w.document.write(`
+      <!doctype html>
+      <html>
+      <head>
+        <title>Email logs</title>
+        <style>
+          body{font-family:system-ui;padding:20px;background:#0b1220;color:#e5e7eb}
+          pre{white-space:pre-wrap}
+        </style>
+      </head>
+      <body>
+        <h2>Email logs — event ${id}</h2>
+        <pre>${safe}</pre>
+      </body>
+      </html>
+    `);
+    w.document.close();
+  }catch(err){
+    alert('Greška (logs): ' + (err?.message || err));
+  }
+}
+
+
 async function sendReminderNow(id){
   if(!confirm('Send reminder now?')) return;
   await apiJson(`/admin/api/events/${id}/send-reminder-now`, { method:'POST' });
@@ -320,6 +343,7 @@ async function sendReminderNow(id){
   window.declineEvent = declineEvent;
   window.resendOffer = resendOffer;
   window.sendReminderNow = sendReminderNow;
+  window.openLogs = openLogs;
 
   document.getElementById('refresh').addEventListener('click', load);
   document.getElementById('logout').addEventListener('click', async () => {
