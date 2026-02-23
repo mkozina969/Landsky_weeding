@@ -166,7 +166,10 @@
   }
 
   async function apiJson(path, opts={}){
-    const res = await fetch(path, opts);
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch(path, {credentials:'same-origin', ...opts, signal: controller.signal});
+    clearTimeout(t);
     if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
     if(!res.ok){
       const t = await res.text();
@@ -176,7 +179,10 @@
   }
 
   async function apiNoJson(path, opts={}){
-    const res = await fetch(path, opts);
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch(path, {credentials:'same-origin', ...opts, signal: controller.signal});
+    clearTimeout(t);
     if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
     if(!res.ok){
       const t = await res.text();
@@ -239,7 +245,7 @@
     if(q) url.searchParams.set('q', q);
 
     try{
-      const data = await apiJson(url.toString());
+      const data = await apiJson(url.pathname + url.search);
       const items = data.items || [];
       render(items);
       msgEl.textContent = `Učitano: ${items.length}`;
