@@ -6,110 +6,73 @@ import base64
 import smtplib
 from datetime import datetime, date, timedelta, time
 from email.mime.text import MIMEText
-from typing import Generator, Optional
+from typing import Generator, Optional, Tuple
 
 import requests
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, create_engine, text
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from pydantic import BaseModel, Field, EmailStr
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Date,
+    DateTime,
+    Boolean,
+    Text,
+    ForeignKey,
+    text,
+)
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
-# Optional scheduler
 try:
-    from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
+    from apscheduler.schedulers.background import BackgroundScheduler
 except Exception:
-    BackgroundScheduler = None
-
-load_dotenv()
+    BackgroundScheduler = None  # type: ignore
 
 import logging
 
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-
-logger = logging.getLogger("landsly")
+logger = logging.getLogger("landski")
 
 # ======================
 # ENV
 # ======================
 
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
-# Email provider: "resend" or "smtp"
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend").lower().strip()
-
-# Resend
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
-# Sender: for Resend testing you can use onboarding@resend.dev
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev").strip()
-
-# Internal inbox (you)
-CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", SENDER_EMAIL).strip()
-
-# SMTP (optional)
-SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
-SMTP_PORT = int((os.getenv("SMTP_PORT", "465").strip() or "465"))
-SMTP_USER = os.getenv("SMTP_USER", "").strip()
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
-
-# Admin basic auth
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
-# TEST MODE: if "1" or "true" -> offer emails go only to CATERING_TEAM_EMAIL
-TEST_MODE = os.getenv("TEST_MODE", "1").lower() in ("1", "true", "yes", "on")
+CATERING_TEAM_EMAIL = os.getenv("CATERING_TEAM_EMAIL", "")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 
-# Reminders
-REMINDERS_ENABLED = os.getenv("REMINDERS_ENABLED", "0").lower() in ("1", "true", "yes", "on")
-REMINDER_DAY_1 = int(os.getenv("REMINDER_DAY_1", "3"))
-REMINDER_DAY_2 = int(os.getenv("REMINDER_DAY_2", "7"))
+TEST_MODE = os.getenv("TEST_MODE", "1") == "1"
+REMINDERS_ENABLED = os.getenv("REMINDERS_ENABLED", "1") == "1"
+
+REMINDER_DAY_1 = int(os.getenv("REMINDER_DAY_1", "3"))  # 3 days
+REMINDER_DAY_2 = int(os.getenv("REMINDER_DAY_2", "7"))  # 7 days
+
+PACKAGE_LABELS = {
+    "classic": "Classic",
+    "premium": "Premium",
+    "signature": "Signature",
+}
 
 # ======================
 # DB
 # ======================
 
+engine = create_engine(DATABASE_URL, connect_args={} if "sqlite" not in DATABASE_URL else {"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
-
-def _sanitize_database_url(url: str) -> str:
-    """
-    Neon connection strings often include sslmode=require in the query string.
-    Some drivers don't accept sslmode in connect args, so we strip query params
-    and enforce SSL via connect_args.
-    """
-    if not url:
-        return url
-    if "?" in url:
-        url = url.split("?", 1)[0]
-    return url
-
-
-def _make_engine():
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL is not set")
-
-    url = _sanitize_database_url(DATABASE_URL)
-
-    connect_args = {}
-    if url.startswith("postgresql") or url.startswith("postgres://"):
-        ssl_ctx = ssl.create_default_context()
-        connect_args["ssl_context"] = ssl_ctx
-
-    if "sqlite" in url:
-        connect_args = {"check_same_thread": False}
-
-    return create_engine(url, pool_pre_ping=True, connect_args=connect_args)
-
-
-engine = _make_engine()
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Event(Base):
@@ -120,20 +83,26 @@ class Event(Base):
 
     first_name = Column(String(120), nullable=False)
     last_name = Column(String(120), nullable=False)
-    wedding_date = Column(Date, nullable=False)
+    wedding_date = Column(Date, nullable=False)  # keep DB name stable (prod-safe)
     venue = Column(String(255), nullable=False)
     guest_count = Column(Integer, nullable=False)
 
     email = Column(String(255), nullable=False)
     phone = Column(String(80), nullable=False)
 
-    # Couple notes / questions
+    # Client notes / questions
     message = Column(Text, nullable=True)
 
     # Status + package choice
     status = Column(String(30), default="pending", nullable=False)  # pending/accepted/declined
     selected_package = Column(String(30), nullable=True)  # classic/premium/signature
     accepted = Column(Boolean, default=False, nullable=False)
+
+    # Event type (wedding/corporate/private)
+    event_type = Column(String(30), nullable=True, default="wedding")
+
+    # Offer expiry (e.g. 14 days)
+    offer_expires_at = Column(DateTime, nullable=True)
 
     # Reminder tracking
     last_email_sent_at = Column(DateTime, nullable=True)
@@ -167,6 +136,15 @@ class EmailLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class EventNote(Base):
+    __tablename__ = "event_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), index=True, nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 Base.metadata.create_all(bind=engine)
 
 # --- MVP migrations (best-effort) ---
@@ -191,6 +169,8 @@ try:
             add_sqlite("reminder_3d_sent_at", "ALTER TABLE events ADD COLUMN reminder_3d_sent_at DATETIME")
             add_sqlite("reminder_7d_sent_at", "ALTER TABLE events ADD COLUMN reminder_7d_sent_at DATETIME")
             add_sqlite("event_2d_sent_at", "ALTER TABLE events ADD COLUMN event_2d_sent_at DATETIME")
+            add_sqlite("event_type", "ALTER TABLE events ADD COLUMN event_type TEXT")
+            add_sqlite("offer_expires_at", "ALTER TABLE events ADD COLUMN offer_expires_at DATETIME")
         else:
             def col_exists(col: str) -> bool:
                 r = conn.execute(
@@ -222,9 +202,12 @@ try:
                 conn.execute(text("ALTER TABLE events ADD COLUMN reminder_7d_sent_at TIMESTAMP NULL"))
             if not col_exists("event_2d_sent_at"):
                 conn.execute(text("ALTER TABLE events ADD COLUMN event_2d_sent_at TIMESTAMP NULL"))
-except Exception as ex:
+            if not col_exists("event_type"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN event_type VARCHAR NULL"))
+            if not col_exists("offer_expires_at"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN offer_expires_at TIMESTAMP NULL"))
+except Exception:
     logger.exception("MIGRATIONS skipped/failed")
-
 
 
 def db_session() -> Generator[Session, None, None]:
@@ -240,14 +223,15 @@ def db_session() -> Generator[Session, None, None]:
 # ======================
 
 class RegistrationRequest(BaseModel):
+    event_type: Optional[str] = Field(default="wedding")
     first_name: str = Field(..., min_length=1, max_length=120)
     last_name: str = Field(..., min_length=1, max_length=120)
     wedding_date: date
     venue: str = Field(..., min_length=1, max_length=255)
-    guest_count: int = Field(..., ge=1, le=10000)
+    guest_count: int = Field(..., ge=1, le=1000)
     email: EmailStr
     phone: str = Field(..., min_length=3, max_length=80)
-    message: Optional[str] = Field(default=None, max_length=5000)
+    message: Optional[str] = None
 
 
 class StatusUpdate(BaseModel):
@@ -258,219 +242,161 @@ class StatusUpdate(BaseModel):
 # EMAIL
 # ======================
 
-def send_email_resend(to_email: str, subject: str, body_html: str):
-    if not RESEND_API_KEY:
-        raise RuntimeError("RESEND_API_KEY is not set")
-    r = requests.post(
-        "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "from": SENDER_EMAIL,
-            "to": [to_email],
-            "subject": subject,
-            "html": body_html,
-        },
-        timeout=30,
-    )
-    data = {}
-    try:
-        data = r.json()
-    except Exception:
-        data = {}
-    if r.status_code >= 300:
-        raise RuntimeError(f"Resend error: {r.text}")
-    return data.get("id")
+def send_email(to_email: str, subject: str, html_body: str) -> Optional[str]:
+    """Send via Resend if configured, otherwise try SMTP (legacy), return provider msg id if any."""
+    if RESEND_API_KEY:
+        try:
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "from": SENDER_EMAIL,
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_body,
+                },
+                timeout=20,
+            )
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
+            data = resp.json()
+            return data.get("id")
+        except Exception:
+            logger.exception("Resend send failed")
+            raise
 
+    # fallback SMTP (if you had it configured)
+    smtp_host = os.getenv("SMTP_HOST", "")
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASS", "")
+    smtp_port = int(os.getenv("SMTP_PORT", "465"))
 
-def send_email_smtp(to_email: str, subject: str, body_html: str):
-    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
-        raise RuntimeError("SMTP settings missing (SMTP_HOST/SMTP_USER/SMTP_PASSWORD)")
+    if not smtp_host:
+        logger.warning("No RESEND_API_KEY and no SMTP_HOST; skipping email send")
+        return None
 
-    msg = MIMEText(body_html, "html", "utf-8")
+    msg = MIMEText(html_body, "html", "utf-8")
     msg["Subject"] = subject
     msg["From"] = SENDER_EMAIL
     msg["To"] = to_email
 
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-        server.login(SMTP_USER, SMTP_PASSWORD)
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context) as server:
+        server.login(smtp_user, smtp_pass)
         server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
+    return None
 
 
-def send_email(to_email: str, subject: str, body_html: str):
-    if EMAIL_PROVIDER == "smtp":
-        return send_email_smtp(to_email, subject, body_html)
-    return send_email_resend(to_email, subject, body_html)
-
-
-
-def send_email_logged(db: Session, event_id: int, email_type: str, to_email: str, subject: str, body_html: str) -> None:
-    """Send email and persist an audit log row.
-    This is intentionally best-effort: we always write a log row (sent or failed).
-    """
-    provider_message_id = None
+def send_email_logged(db: Session, event_id: int, email_type: str, to_email: str, subject: str, html_body: str):
+    provider_id = None
     status = "sent"
-    error = None
+    err = None
     try:
-        provider_message_id = send_email(to_email, subject, body_html)
+        provider_id = send_email(to_email, subject, html_body)
     except Exception as ex:
         status = "failed"
-        error = str(ex)
-        logger.exception("email_send_failed", extra={"event_id": event_id, "email_type": email_type, "to": to_email})
-        # keep raising so caller can decide what to do
-        raise
-    finally:
-        try:
-            db.add(
-                EmailLog(
-                    event_id=event_id,
-                    email_type=email_type,
-                    to_email=to_email,
-                    subject=subject[:255],
-                    provider=EMAIL_PROVIDER,
-                    provider_message_id=provider_message_id,
-                    status=status,
-                    error=error,
-                    created_at=datetime.utcnow(),
-                )
-            )
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.exception("email_log_write_failed", extra={"event_id": event_id, "email_type": email_type})
+        err = str(ex)
+
+    log_row = EmailLog(
+        event_id=event_id,
+        email_type=email_type,
+        to_email=to_email,
+        subject=subject,
+        provider="resend" if RESEND_API_KEY else "smtp",
+        provider_message_id=provider_id,
+        status=status,
+        error=err,
+        created_at=datetime.utcnow(),
+    )
+    db.add(log_row)
+    db.commit()
+
+    if status != "sent":
+        raise RuntimeError(f"Email failed: {err}")
 
 
-def get_reminder_recipient(e: "Event", kind: str) -> str:
-    """Routing rules:
-    - TEST_MODE: everything to catering
-    - event_2d: always to catering
-    - offer_3d/offer_7d: to client (pending only)
-    """
-    if TEST_MODE:
-        return CATERING_TEAM_EMAIL
-    if kind == "event_2d":
-        return CATERING_TEAM_EMAIL
-    return e.email
-
-
-PACKAGE_LABELS = {
-    "classic": "Classic",
-    "premium": "Premium",
-    "signature": "Signature",
-}
+def internal_email_body(e: Event) -> str:
+    return f"""
+<div style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;padding:18px">
+  <h2 style="margin:0 0 10px">Novi upit za catering / event</h2>
+  <div style="padding:12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">
+    <b>Klijent:</b> {html.escape(e.first_name)} {html.escape(e.last_name)}<br/>
+    <b>Tip:</b> {html.escape((e.event_type or "wedding").upper())}<br/>
+    <b>Datum:</b> {html.escape(str(e.wedding_date))}<br/>
+    <b>Lokacija:</b> {html.escape(e.venue)}<br/>
+    <b>Gostiju:</b> {e.guest_count}<br/>
+    <b>Email:</b> {html.escape(e.email)}<br/>
+    <b>Telefon:</b> {html.escape(e.phone)}<br/>
+    <b>Napomena:</b> {html.escape(e.message or "")}
+  </div>
+</div>
+"""
 
 
 def render_offer_html(e: Event) -> str:
-    template_path = os.path.join("frontend", "offer.html")
-    if os.path.exists(template_path):
-        tpl = open(template_path, "r", encoding="utf-8").read()
-        return (
-            tpl.replace("{{FIRST_NAME}}", html.escape(e.first_name))
-            .replace("{{LAST_NAME}}", html.escape(e.last_name))
-            .replace("{{WEDDING_DATE}}", html.escape(str(e.wedding_date)))
-            .replace("{{VENUE}}", html.escape(e.venue))
-            .replace("{{GUEST_COUNT}}", str(e.guest_count))
-            .replace("{{EMAIL}}", html.escape(e.email))
-            .replace("{{PHONE}}", html.escape(e.phone))
-            .replace("{{MESSAGE}}", html.escape((e.message or "").strip()))
-            .replace("{{ACCEPT_URL}}", f"{BASE_URL}/accept?token={e.token}")
-            .replace("{{DECLINE_URL}}", f"{BASE_URL}/decline?token={e.token}")
-            .replace("{{BASE_URL}}", BASE_URL)
-        )
-
-    logo_url = f"{BASE_URL}/frontend/logo.png"
-    cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
-    bar_img = f"{BASE_URL}/frontend/bar.jpeg"
-    cigare_img = f"{BASE_URL}/frontend/cigare.png"
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
-    msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
+
+    # hosted attachments from your frontend
+    cocktails_url = f"{BASE_URL}/frontend/cocktails.pdf"
+    bar_url = f"{BASE_URL}/frontend/bar.jpeg"
+    cigare_url = f"{BASE_URL}/frontend/cigare.png"
 
     return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
-  <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
-    <div style="background:#0b0f14; padding:18px 18px 12px 18px;">
-      <div style="display:flex; align-items:center; gap:14px;">
-        <img src="{logo_url}" alt="Landsky Cocktail Catering"
-          style="width:68px; height:68px; object-fit:contain; border-radius:12px; background:#111; padding:6px;" />
-        <div style="color:#fff;">
-          <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
-          <div style="font-size:13px; opacity:.85;">Ponuda</div>
-        </div>
+<div style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;padding:18px">
+  <div style="max-width:760px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="{BASE_URL}/frontend/logo.png" alt="Landsky" style="height:44px;border-radius:10px"/>
+      <div>
+        <h2 style="margin:0">Ponuda — Landsky Catering</h2>
+        <div style="opacity:.8;font-size:13px">Sažetak upita: {html.escape(e.first_name)} {html.escape(e.last_name)} • {html.escape(str(e.wedding_date))} • {html.escape(e.venue)}</div>
       </div>
     </div>
 
-    <div style="padding:18px;">
-      <div style="font-size:14px;">
-        Poštovani/Poštovana <b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b>,<br>
-        zahvaljujemo na Vašem upitu. U nastavku dostavljamo informacije vezane za cocktail catering.
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,.10);margin:14px 0"/>
+
+    <h3 style="margin:0 0 8px">Ponuda uključuje</h3>
+    <ul style="margin:0;padding-left:18px;opacity:.95">
+      <li>Profesionalno osoblje i organizacija</li>
+      <li>Bar / cocktail setup prema dogovoru</li>
+      <li>Dogovor oko logistike i termina</li>
+    </ul>
+
+    <p style="margin:12px 0 0;opacity:.9">
+      Put: <b>0.70 EUR/km</b>
+    </p>
+
+    <h3 style="margin:16px 0 8px">Premium cigare (opcionalno)</h3>
+    <p style="margin:0;opacity:.9">
+      Pregled opcija: <a style="color:#93c5fd" href="{cigare_url}" target="_blank" rel="noopener">cigare.png</a>
+    </p>
+
+    <h3 style="margin:16px 0 8px">Cocktails (PDF)</h3>
+    <p style="margin:0;opacity:.9">
+      <a style="color:#93c5fd" href="{cocktails_url}" target="_blank" rel="noopener">cocktails.pdf</a>
+    </p>
+
+    <h3 style="margin:16px 0 8px">Paketi</h3>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <div style="padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
+        <b>Classic</b><div style="opacity:.85">Osnovni paket</div>
       </div>
-
-      <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fafafa;">
-        <div style="font-weight:700; margin-bottom:8px;">Sažetak upita</div>
-        <div>📅 <b>Datum:</b> {html.escape(str(e.wedding_date))}</div>
-        <div>📍 <b>Lokacija / sala:</b> {html.escape(e.venue)}</div>
-        <div>👥 <b>Broj gostiju:</b> {e.guest_count}</div>
-        <div>✉️ <b>Email:</b> {html.escape(e.email)}</div>
-        <div>📞 <b>Telefon:</b> {html.escape(e.phone)}</div>
-        <div style="margin-top:8px;"><b>Napomena / pitanja:</b><br>{msg_html}</div>
+      <div style="padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
+        <b>Premium</b><div style="opacity:.85">Napredni paket</div>
       </div>
-
-      <div style="margin-top:14px; padding:14px; border:1px solid #ffe8c2; border-radius:12px; background:#fff7ea;">
-        <div style="font-weight:700; margin-bottom:8px;">U ponudi su sljedeći paketi:</div>
-
-        <div style="margin:8px 0 10px 0;">
-          <div style="font-weight:700;">Ponuda uključuje:</div>
-          <ul style="margin:6px 0 0 18px; padding:0;">
-            <li>Profesionalnog barmena</li>
-            <li>Event menu s koktelima prilagođen temi eventa (po želji)</li>
-            <li>Alkoholne i bezalkoholne koktele</li>
-            <li>Premium led / nefrumirani led</li>
-            <li>Dekoracije</li>
-            <li>Šank</li>
-          </ul>
-        </div>
-
-        <div style="font-weight:700; margin:10px 0 6px 0;">Cijene paketa</div>
-        <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
-        <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) — dodatnih 100: 600 EUR + PDV</div>
-        <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) — dodatnih 100: 800 EUR + PDV</div>
-
-        <div style="margin-top:10px;">
-          * Preporučujemo 200 koktela.
-        </div>
-
-        <div style="margin-top:10px;">
-          📎 Detalji paketa: <a href="{cocktails_pdf}" target="_blank" style="color:#0b57d0;">{cocktails_pdf}</a>
-        </div>
+      <div style="padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
+        <b>Signature</b><div style="opacity:.85">Najbolji paket</div>
       </div>
+    </div>
 
-      <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fff;">
-        <div style="font-weight:700; margin-bottom:8px;">Premium cigare (opcionalno)</div>
-        <div>Uz odabir cigara od nas dobivate humidor, rezac, upaljač i pepeljaru. Nudimo i Cigar Concierge uslugu — <b>450 EUR + PDV</b> (3 sata).</div>
-        <div style="margin-top:8px;">📎 Popis cigara: <a href="{cigare_img}" target="_blank" style="color:#0b57d0;">{cigare_img}</a></div>
-        <div style="margin-top:8px;">Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.</div>
-        <div style="margin-top:8px;">Rado Vas pozivamo na prezentaciju koktela u našem LandSky Baru (Draškovićeva 144), gdje ćemo Vam detaljno predstaviti našu uslugu i odabrati najbolje za vaš event.</div>
-        <div style="margin-top:8px;">📎 Fotografija bara: <a href="{bar_img}" target="_blank" style="color:#0b57d0;">{bar_img}</a></div>
-      </div>
-
-      <div style="margin-top:14px; padding:14px; border:1px solid #e8f5e9; border-radius:12px; background:#f2fbf3;">
-        <div style="font-weight:700; margin-bottom:8px;">Potvrda ponude</div>
-        <div>Molimo potvrdite ponudu klikom:</div>
-        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-          <a href="{accept_link}" style="background:#1b5e20; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700;">✅ Prihvaćam</a>
-          <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700;">❌ Odbijam</a>
-        </div>
-        <div style="margin-top:10px; font-size:12px; color:#333;">
-          Napomena: kod prihvaćanja ćete odabrati paket (Classic / Premium / Signature).
-        </div>
-      </div>
-
-      <div style="margin-top:16px; font-size:12px; color:#666;">
-        Ovaj email je generiran automatski. Ako trebate pomoć, odgovorite na ovaj email.
+    <div style="margin-top:16px;padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
+      <p style="margin:0 0 8px;opacity:.9">
+        Ako želite, možete doći na prezentaciju u LandSky bar:
+        <a style="color:#93c5fd" href="{bar_url}" target="_blank" rel="noopener">bar.jpeg</a>
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="{accept_link}" style="background:#16a34a;color:white;text-decoration:none;padding:10px 14px;border-radius:12px;font-weight:700">Prihvati ponudu</a>
+        <a href="{decline_link}" style="background:#ef4444;color:white;text-decoration:none;padding:10px 14px;border-radius:12px;font-weight:700">Odbij ponudu</a>
       </div>
     </div>
   </div>
@@ -478,29 +404,52 @@ def render_offer_html(e: Event) -> str:
 """
 
 
-def internal_email_body(e: Event) -> str:
-    preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
-    admin_link = f"{BASE_URL}/admin"
-    msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
+def reminder_email_body(e: Event) -> str:
+    accept_link = f"{BASE_URL}/accept?token={e.token}"
+    decline_link = f"{BASE_URL}/decline?token={e.token}"
     return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
-  <h2>Novi upit</h2>
-  <ul>
-    <li><b>Klijent:</b> {html.escape(e.first_name)} {html.escape(e.last_name)}</li>
-    <li><b>Email klijenta:</b> {html.escape(e.email)}</li>
-    <li><b>Telefon:</b> {html.escape(e.phone)}</li>
-    <li><b>Datum:</b> {html.escape(str(e.wedding_date))}</li>
-    <li><b>Sala:</b> {html.escape(e.venue)}</li>
-    <li><b>Gosti:</b> {e.guest_count}</li>
-    <li><b>Status:</b> {html.escape(e.status)}</li>
-    <li><b>Odabrani paket:</b> {html.escape(e.selected_package or "—")}</li>
-  </ul>
-  <p><b>Napomena / Pitanja:</b><br>{msg_html}</p>
-  <p><b>Preview ponude:</b><br><a href="{preview_link}">{preview_link}</a></p>
-  <p><b>Admin:</b> <a href="{admin_link}">{admin_link}</a></p>
+<div style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;padding:18px">
+  <div style="max-width:760px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px">
+    <h2 style="margin:0 0 8px">Podsjetnik — Ponuda</h2>
+    <p style="margin:0 0 14px;opacity:.9">Podsjetnik vezano za ponudu za vaš event.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a href="{accept_link}" style="background:#16a34a;color:white;text-decoration:none;padding:10px 14px;border-radius:12px;font-weight:700">Prihvati ponudu</a>
+      <a href="{decline_link}" style="background:#ef4444;color:white;text-decoration:none;padding:10px 14px;border-radius:12px;font-weight:700">Odbij ponudu</a>
+    </div>
+  </div>
 </div>
 """
+
+
+def event_2d_email_body(e: Event) -> str:
+    return f"""
+<div style="font-family:Arial,Helvetica,sans-serif;background:#0b0f14;color:#e5e7eb;padding:18px">
+  <div style="max-width:760px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px">
+    <h2 style="margin:0 0 8px">Interni podsjetnik — event uskoro</h2>
+    <p style="margin:0 0 14px;opacity:.9">Event je za 2 dana. Provjerite logistiku i pripremu.</p>
+    <div style="padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
+      <b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b><br/>
+      Tip: {html.escape((e.event_type or "wedding").upper())}<br/>
+      Datum: {html.escape(str(e.wedding_date))}<br/>
+      Lokacija: {html.escape(e.venue)}<br/>
+      Gostiju: {e.guest_count}
+    </div>
+  </div>
+</div>
+"""
+
+
+def get_reminder_recipient(e: Event, kind: str) -> str:
+    # TEST_MODE: sve ide cateringu
+    if TEST_MODE:
+        return CATERING_TEAM_EMAIL
+
+    # 2 dana prije eventa: samo interno
+    if kind == "event_2d":
+        return CATERING_TEAM_EMAIL
+
+    # offer reminders idu klijentu
+    return e.email
 
 
 def send_offer_flow(e: Event, db: Optional[Session] = None):
@@ -511,7 +460,6 @@ def send_offer_flow(e: Event, db: Optional[Session] = None):
         send_email_logged(db, e.id, "internal_new_inquiry", CATERING_TEAM_EMAIL, subject_internal, body_internal)
     else:
         send_email(CATERING_TEAM_EMAIL, subject_internal, body_internal)
-
 
     # offer email
     offer_recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
@@ -526,6 +474,7 @@ def send_offer_flow(e: Event, db: Optional[Session] = None):
         now = datetime.utcnow()
         e.last_email_sent_at = now
         e.offer_sent_at = now
+        e.offer_expires_at = now + timedelta(days=14)
         e.reminder_count = 0
         e.reminder_3d_sent_at = None
         e.reminder_7d_sent_at = None
@@ -533,35 +482,12 @@ def send_offer_flow(e: Event, db: Optional[Session] = None):
         db.commit()
 
 
-def reminder_email_body(e: Event) -> str:
-    accept_link = f"{BASE_URL}/accept?token={e.token}"
-    decline_link = f"{BASE_URL}/decline?token={e.token}"
-    return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik — Landsky Cocktail Catering ponuda</h2>
-  <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
-  <p>Samo kratki podsjetnik vezano za našu ponudu za datum <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).</p>
-  <p>✅ <a href="{accept_link}">Prihvaćam ponudu</a><br>
-     ❌ <a href="{decline_link}">Odbijam ponudu</a></p>
-</div>
-"""
-
-
-
-def event_2d_email_body(e: Event) -> str:
-    return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik — Vaš događaj je uskoro</h2>
-  <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
-  <p>Samo kratka potvrda da smo sve spremni za vaš datum <b>{html.escape(str(e.wedding_date))}</b> na lokaciji <b>{html.escape(e.venue)}</b>.</p>
-  <p>Ako imate bilo kakve promjene oko broja gostiju ili detalja, slobodno nam se javite.</p>
-  <p>Srdačno,<br>Landsky Cocktail Catering</p>
-</div>
-"""
-
-
 def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
     """Returns (kind, due_at) where kind is: offer_3d, offer_7d, event_2d."""
+    # Stop offer reminders after expiry
+    if e.status == "pending" and e.offer_expires_at and e.offer_expires_at < datetime.utcnow():
+        return (None, None)
+
     # Offer reminders for pending events
     if e.status == "pending":
         base = e.offer_sent_at or e.last_email_sent_at
@@ -579,7 +505,6 @@ def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
     return (None, None)
 
 
-
 def reminder_job():
     """Hourly reminders with idempotency + Postgres advisory lock."""
     db = SessionLocal()
@@ -590,26 +515,26 @@ def reminder_job():
         # Prevent duplicate scheduler runs (Postgres only)
         if not ("sqlite" in str(engine.url)):
             try:
-                lock_acquired = bool(
-                    db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": 927341}).scalar()
-                )
+                lock_acquired = bool(db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": 927341}).scalar())
                 if not lock_acquired:
-                    logger.info("reminder_job: lock not acquired, skipping")
+                    logger.info("reminder_job: lock not acquired; skipping")
                     return
             except Exception:
-                # If lock fails for any reason, proceed without it (still idempotent by DB flags)
-                logger.exception("reminder_job: advisory lock error")
+                logger.exception("reminder_job: lock check failed")
 
-        # 1) Offer reminders (pending)
+        # 1) Pending events: 3/7 days after offer_sent_at
         pending = db.query(Event).filter(Event.status == "pending").all()
         for e in pending:
+            # stop if expired
+            if e.offer_expires_at and e.offer_expires_at < now:
+                continue
+
             base = e.offer_sent_at or e.last_email_sent_at
             if not base:
                 continue
 
-            # 3-day (or REMINDER_DAY_1) reminder
+            # 3-day reminder
             if e.reminder_3d_sent_at is None and (now - base).days >= REMINDER_DAY_1:
-                # Claim atomically
                 res = db.execute(
                     text(
                         "UPDATE events SET reminder_3d_sent_at=:now, last_email_sent_at=:now, "
@@ -621,12 +546,19 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email_logged(db, e.id, "offer_3d", get_reminder_recipient(e, "offer_3d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(
+                            db,
+                            e.id,
+                            "offer_3d",
+                            get_reminder_recipient(e, "offer_3d"),
+                            "Podsjetnik — Landsky ponuda",
+                            reminder_email_body(e),
+                        )
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_3d)", extra={"event_id": e.id})
                 continue
 
-            # 7-day (or REMINDER_DAY_2) reminder
+            # 7-day reminder
             if e.reminder_3d_sent_at is not None and e.reminder_7d_sent_at is None and (now - base).days >= REMINDER_DAY_2:
                 res = db.execute(
                     text(
@@ -639,11 +571,18 @@ def reminder_job():
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email_logged(db, e.id, "offer_7d", get_reminder_recipient(e, "offer_7d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(
+                            db,
+                            e.id,
+                            "offer_7d",
+                            get_reminder_recipient(e, "offer_7d"),
+                            "Podsjetnik — Landsky ponuda",
+                            reminder_email_body(e),
+                        )
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_7d)", extra={"event_id": e.id})
 
-        # 2) Accepted events: 2 days before wedding date (only once)
+        # 2) Accepted events: 2 days before date (only once)
         accepted = db.query(Event).filter(Event.status == "accepted").all()
         for e in accepted:
             if e.event_2d_sent_at is not None:
@@ -656,7 +595,6 @@ def reminder_job():
 
             recipient = get_reminder_recipient(e, "event_2d")
 
-            # internal recipient (catering team)
             res = db.execute(
                 text(
                     "UPDATE events SET event_2d_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
@@ -667,7 +605,14 @@ def reminder_job():
             db.commit()
             if res.rowcount == 1:
                 try:
-                    send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro doga", event_2d_email_body(e))
+                    send_email_logged(
+                        db,
+                        e.id,
+                        "event_2d",
+                        recipient,
+                        "Interni podsjetnik — uskoro događaj",
+                        event_2d_email_body(e),
+                    )
                 except Exception:
                     logger.exception("reminder_job: send failed (event_2d)", extra={"event_id": e.id})
 
@@ -689,16 +634,17 @@ def reminder_job():
 
 # ======================
 # APP
-
 # ======================
 
-app = FastAPI(title="Landsky Wedding App")
+app = FastAPI(title="Landsky Catering – Inquiries & Offers")
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
 @app.on_event("startup")
 def _startup():
+    # ensure tables exist
     Base.metadata.create_all(bind=engine)
+
     if REMINDERS_ENABLED and BackgroundScheduler is not None:
         scheduler = BackgroundScheduler()
         scheduler.add_job(reminder_job, "interval", hours=1)
@@ -724,6 +670,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
         token=uuid.uuid4().hex,
         first_name=payload.first_name.strip(),
         last_name=payload.last_name.strip(),
+        event_type=(payload.event_type or "wedding").strip().lower(),
         wedding_date=payload.wedding_date,
         venue=payload.venue.strip(),
         guest_count=payload.guest_count,
@@ -747,7 +694,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(db_session)):
 
     try:
         send_offer_flow(e, db=db)
-    except Exception as ex:
+    except Exception:
         logger.exception("EMAIL SEND FAILED")
 
     return {"message": "Vaš upit je zaprimljen.", "preview_url": preview_url}
@@ -762,7 +709,7 @@ def offer_preview(token: str = Query(...), db: Session = Depends(db_session)):
 
 
 # ======================
-# ACCEPT / DECLINE (couple) - GET only (no python-multipart needed)
+# ACCEPT / DECLINE (client)
 # ======================
 
 @app.get("/accept", response_class=HTMLResponse)
@@ -801,6 +748,7 @@ def accept_get(
     <p style="margin:0 0 14px;color:#9ca3af">Molimo odaberite paket i potvrdite.</p>
     <div style="padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10)">
       <b>{html.escape(e.first_name)} {html.escape(e.last_name)}</b><br/>
+      Tip: {html.escape((e.event_type or "wedding").upper())}<br/>
       Datum: {html.escape(str(e.wedding_date))}<br/>
       Lokacija: {html.escape(e.venue)}<br/>
       Gostiju: {e.guest_count}
@@ -877,6 +825,8 @@ def decline_get(
 # ADMIN AUTH + UI + API
 # ======================
 
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
 security = HTTPBasic()
 
 
@@ -950,7 +900,6 @@ def admin_events(
             or (e.email and qq in e.email.lower())
         ]
 
-    
     items = []
     for e in rows:
         kind, due_at = compute_next_reminder(e)
@@ -968,6 +917,9 @@ def admin_events(
                 "message": e.message or "",
                 "status": e.status,
                 "selected_package": e.selected_package or "",
+                "event_type": e.event_type or "wedding",
+                "offer_expires_at": e.offer_expires_at.isoformat() if e.offer_expires_at else None,
+                "is_expired": bool(e.offer_expires_at and e.offer_expires_at < datetime.utcnow()) if e.status == "pending" else False,
                 "reminder_count": int(e.reminder_count or 0),
                 "last_email_sent_at": e.last_email_sent_at.isoformat() if e.last_email_sent_at else None,
                 "next_reminder_kind": kind,
@@ -982,6 +934,7 @@ def admin_events(
         )
     return {"items": items}
 
+
 def _apply_status(e: Event, status: str):
     status = status.strip().lower()
     if status not in ("pending", "accepted", "declined"):
@@ -989,7 +942,6 @@ def _apply_status(e: Event, status: str):
     e.status = status
     e.accepted = status == "accepted"
     e.updated_at = datetime.utcnow()
-
 
 
 @app.get("/admin/api/events/{event_id}/email-logs")
@@ -1021,6 +973,73 @@ def admin_email_logs(
         for l in logs
     ]
 
+
+@app.post("/admin/api/events/{event_id}/notes")
+def admin_add_note(
+    event_id: int,
+    payload: dict,
+    request: Request,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    _require_admin(request)
+    text_val = (payload.get("text") or "").strip()
+    if not text_val:
+        raise HTTPException(status_code=400, detail="Text is required")
+    note = EventNote(event_id=event_id, text=text_val, created_at=datetime.utcnow())
+    db.add(note)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/admin/api/events/{event_id}/timeline")
+def admin_timeline(
+    event_id: int,
+    request: Request,
+    db: Session = Depends(db_session),
+    _: None = Depends(require_admin),
+):
+    _require_admin(request)
+
+    emails = (
+        db.query(EmailLog)
+        .filter(EmailLog.event_id == event_id)
+        .order_by(EmailLog.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    notes = (
+        db.query(EventNote)
+        .filter(EventNote.event_id == event_id)
+        .order_by(EventNote.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    items = []
+    for e in emails:
+        items.append(
+            {
+                "type": "email",
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "label": f"{e.email_type} → {e.to_email}",
+                "status": e.status,
+                "subject": e.subject,
+            }
+        )
+    for n in notes:
+        items.append(
+            {
+                "type": "note",
+                "created_at": n.created_at.isoformat() if n.created_at else None,
+                "label": n.text,
+            }
+        )
+
+    items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return items
+
+
 @app.post("/admin/api/events/{event_id}/status")
 def admin_set_status(
     event_id: int,
@@ -1038,7 +1057,6 @@ def admin_set_status(
     return {"ok": True}
 
 
-# OLD endpoints
 @app.post("/admin/api/events/{event_id}/accept")
 def admin_accept_event(
     event_id: int,
@@ -1106,7 +1124,6 @@ def admin_send_reminder_now(
 
     now = datetime.utcnow()
     recipient = get_reminder_recipient(e, kind)
-    # recipient determined per reminder kind (offer_3d/offer_7d)
 
     if kind == "offer_3d":
         res = db.execute(
@@ -1120,7 +1137,7 @@ def admin_send_reminder_now(
         db.commit()
         if res.rowcount != 1:
             return {"ok": True, "skipped": True}
-        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+        send_email_logged(db, e.id, "offer_3d", recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
         return {"ok": True}
 
     if kind == "offer_7d":
@@ -1135,7 +1152,7 @@ def admin_send_reminder_now(
         db.commit()
         if res.rowcount != 1:
             return {"ok": True, "skipped": True}
-        send_email(recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+        send_email_logged(db, e.id, "offer_7d", recipient, "Podsjetnik — Landsky ponuda", reminder_email_body(e))
         return {"ok": True}
 
     if kind == "event_2d":
@@ -1149,7 +1166,7 @@ def admin_send_reminder_now(
         db.commit()
         if res.rowcount != 1:
             return {"ok": True, "skipped": True}
-        send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro događaj", event_2d_email_body(e))
+        send_email_logged(db, e.id, "event_2d", recipient, "Interni podsjetnik — uskoro događaj", event_2d_email_body(e))
         return {"ok": True}
 
     raise HTTPException(status_code=400, detail="Invalid reminder type")
