@@ -414,10 +414,10 @@ def render_offer_html(e: Event) -> str:
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
-    <div style="background:#0b0f14; padding:18px 18px 12px 18px;">
+    <div style="background:#ffffff; padding:18px 18px 12px 18px;">
       <div style="display:flex; align-items:center; gap:14px;">
         <img src="{logo_url}" alt="Landsky Cocktail Catering"
-          style="width:68px; height:68px; object-fit:contain; border-radius:12px; background:#111; padding:6px;" />
+          style="width:68px; height:68px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
         <div style="color:#fff;">
           <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
           <div style="font-size:13px; opacity:.85;">Ponuda</div>
