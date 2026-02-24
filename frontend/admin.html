@@ -5,137 +5,125 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Landsky Cocktail Catering – Admin</title>
   <link rel="icon" href="/frontend/favicon.ico" />
-
+  <link rel="apple-touch-icon" href="/frontend/apple-touch-icon.png" />
   <style>
     :root{
-      --bg:#0b1220;
+      --bg:#0b0f14;
       --panel:rgba(255,255,255,.06);
-      --border:rgba(255,255,255,.12);
-      --muted:#9ca3af;
-      --text:#e5e7eb;
-      --pill:rgba(148,163,184,.12);
+      --stroke:rgba(255,255,255,.14);
+      --text:#e8eef7;
+      --muted:rgba(255,255,255,.65);
+      --gold:#d7b46a;
+      --ok:#32d296;
+      --bad:#ff5a5f;
     }
-
+    *{box-sizing:border-box}
     body{
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: var(--bg);
-      color: var(--text);
-      margin: 0;
-      padding: 18px;
+      margin:0;
+      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      color:var(--text);
+      background:linear-gradient(180deg,#0b0f14,#101826);
+      padding:22px;
     }
-
+    h1{margin:0 0 6px 0}
+    .sub{margin:0 0 14px 0; color:var(--muted); font-size:13px}
     .bar{
-      display:flex;
-      gap:10px;
+      display:flex; gap:10px; flex-wrap:wrap;
       align-items:center;
-      justify-content:space-between;
-      margin-bottom:12px;
+      padding:12px;
+      border:1px solid var(--stroke);
+      background:var(--panel);
+      border-radius:14px;
+      margin-bottom:14px;
     }
-
-    .controls{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
+    label{color:var(--muted); font-size:12px}
+    select,input{
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      outline:none;
+      min-width: 180px;
     }
-
-    select, input{
-      background: rgba(255,255,255,.04);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 9px 10px;
-      outline: none;
-    }
-
     button{
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 9px 12px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:0;
       cursor:pointer;
+      background:#1b2333;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.12);
     }
-    button:hover{ background: rgba(255,255,255,.10); }
-
+    button.primary{background:linear-gradient(180deg,var(--gold),#b8933f); color:#111; font-weight:700}
+    button.bad{border-color:rgba(255,90,95,.4)}
     table{
       width:100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      background: var(--panel);
-      border:1px solid var(--border);
-      border-radius: 16px;
+      border-collapse:separate;
+      border-spacing:0;
       overflow:hidden;
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      background:rgba(0,0,0,.18);
     }
-    th, td{
-      border-bottom:1px solid rgba(255,255,255,.08);
-      padding: 10px 8px;
-      vertical-align: middle;
-    }
-    th{
+    thead th{
       text-align:left;
-      font-size: 12px;
-      color: var(--muted);
-      font-weight:700;
-      letter-spacing:.02em;
-      background: rgba(0,0,0,.15);
+      font-size:12px;
+      color:var(--muted);
+      padding:12px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+      white-space:nowrap;
     }
-    tr:hover td{ background: rgba(255,255,255,.03); }
-
-    .muted{ color: var(--muted); }
-    .nowrap{ white-space: nowrap; }
-    .ellipsis{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
-
+    tbody td{
+      padding:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      vertical-align:top;
+      font-size:13px;
+    }
     .pill{
       display:inline-block;
-      padding: 3px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: var(--pill);
-      font-size: 12px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
     }
+    .pill.ok{border-color:rgba(50,210,150,.35); color:#b7ffdf}
+    .pill.bad{border-color:rgba(255,90,95,.35); color:#ffd0d1}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+.ellipsis{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.nowrap{white-space:nowrap}
 
-    .actions{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:nowrap;
-      white-space: nowrap;
-    }
-    .actions button{
-      padding:6px 10px;
-      font-size: 12px;
-      border-radius: 10px;
-    }
-
-    a{ color:#93c5fd; text-decoration:none; }
-    a:hover{ text-decoration:underline; }
+    a{color:#8bd6ff}
+    .actions{display:flex; gap:8px; flex-wrap:nowrap; align-items:center; white-space:nowrap}
+.actions button{padding:6px 10px; font-size:12px; border-radius:10px}
+.actions form{margin:0}
+    .muted{color:var(--muted); font-size:12px}
+    .nowrap{white-space:nowrap}
   </style>
 </head>
-
 <body>
-  <div class="bar">
-    <div>
-      <div class="muted" style="font-size:12px;">Admin</div>
-      <h2 style="margin:2px 0 0;">Upiti & ponude</h2>
-    </div>
-    <div id="msg" class="muted">—</div>
-  </div>
+  <h1>Landsky Cocktail Catering – Admin</h1>
+  <p class="sub">Pregled upita i promjena statusa (Basic Auth).</p>
 
-  <div class="controls" style="margin-bottom:12px;">
-    <label class="muted">Status:</label>
+  <div class="bar">
+    <label for="status">Status</label>
     <select id="status">
       <option value="">Svi</option>
-      <option value="pending">Pending</option>
-      <option value="accepted">Accepted</option>
-      <option value="declined">Declined</option>
+      <option value="pending">pending</option>
+      <option value="accepted">accepted</option>
+      <option value="declined">declined</option>
     </select>
 
-    <label class="muted">Pretraga:</label>
-    <input id="q" placeholder="Ime / prezime / email" />
+    <label for="q">Pretraga (ime/email)</label>
+    <input id="q" placeholder="npr. ivo ili gmail.com" />
 
-    <button onclick="load()">Refresh</button>
+    <button class="primary" id="refresh">Osvježi</button>
+    <button class="bad" id="logout">Odjava</button>
+
+    <span id="msg" class="muted"></span>
   </div>
 
   <table>
@@ -143,7 +131,6 @@
       <tr>
         <th style="width:60px;">ID</th>
         <th style="width:120px;">Status</th>
-        <th style="width:110px;">Tip</th>
         <th style="width:180px;">Klijent</th>
         <th style="width:120px;">Datum</th>
         <th style="width:220px;">Lokacija</th>
@@ -154,11 +141,11 @@
         <th style="width:170px;">Zadnji email</th>
         <th style="width:170px;">Sljedeći podsjetnik</th>
         <th style="width:220px;">Token / link</th>
-        <th style="width:360px;">Akcije</th>
+        <th style="width:320px;">Akcije</th>
       </tr>
     </thead>
     <tbody id="tbody">
-      <tr><td colspan="14" class="muted" style="padding:18px;">Učitavanje…</td></tr>
+      <tr><td colspan="13" class="muted" style="padding:18px;">Učitavanje...</td></tr>
     </tbody>
   </table>
 
@@ -169,47 +156,43 @@
   const msgEl = document.getElementById('msg');
 
   function escapeHtml(s){
-    return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-  }
-
-  async function apiJson(url, opts){
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 20000);
-    try{
-      const res = await fetch(url, {credentials:'same-origin', signal: ctrl.signal, ...opts});
-      if(!res.ok){
-        throw new Error(await res.text());
-      }
-      return await res.json();
-    } finally {
-      clearTimeout(t);
-    }
+    return (s || '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
 
   function statusPill(status){
-    const s = (status||'').toLowerCase();
-    let bg = 'rgba(148,163,184,.12)';
-    let br = 'rgba(255,255,255,.10)';
-    let col = '#e5e7eb';
-    if(s==='accepted'){ bg='rgba(34,197,94,.14)'; br='rgba(34,197,94,.28)'; col='#bbf7d0'; }
-    if(s==='declined'){ bg='rgba(239,68,68,.14)'; br='rgba(239,68,68,.28)'; col='#fecaca'; }
-    return `<span class="pill" style="background:${bg};border-color:${br};color:${col}">${escapeHtml(s||'—')}</span>`;
+    if(status === 'accepted') return `<span class="pill ok">accepted</span>`;
+    if(status === 'declined') return `<span class="pill bad">declined</span>`;
+    return `<span class="pill">pending</span>`;
   }
 
-  function eventTypePill(e){
-    const t = (e.event_type || 'wedding').toLowerCase();
-    const labelMap = {wedding:'Wedding', corporate:'Corporate', private:'Private'};
-    const label = labelMap[t] || (t.charAt(0).toUpperCase()+t.slice(1));
-    let extra = '';
-    if(e.is_expired){
-      extra = ' <span class="pill" style="background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.35);color:#fecaca">EXPIRED</span>';
+  async function apiJson(path, opts={}){
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch(path, {credentials:'same-origin', ...opts, signal: controller.signal});
+    clearTimeout(t);
+    if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
+    if(!res.ok){
+      const t = await res.text();
+      throw new Error(t || ('HTTP '+res.status));
     }
-    return `<span class="pill">${escapeHtml(label)}</span>${extra}`;
+    return await res.json();
+  }
+
+  async function apiNoJson(path, opts={}){
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch(path, {credentials:'same-origin', ...opts, signal: controller.signal});
+    clearTimeout(t);
+    if(res.status === 401){ throw new Error('401 Unauthorized (Basic Auth)'); }
+    if(!res.ok){
+      const t = await res.text();
+      throw new Error(t || ('HTTP '+res.status));
+    }
   }
 
   function render(items){
     if(!items.length){
-      tbody.innerHTML = `<tr><td colspan="14" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
       return;
     }
     tbody.innerHTML = items.map(e => {
@@ -222,43 +205,41 @@
       `;
       const pkg = (e.selected_package || '').trim();
       const pkgHtml = pkg ? `<span class="pill">${escapeHtml(pkg)}</span>` : `<span class="pill" style="opacity:.7">—</span>`;
-      const token = e.token || '';
+	      const token = e.token || '';
       const tokenShort = token ? (token.slice(0,10) + '…') : '';
       const tokenLink = `
         <div class="mono nowrap" title="${escapeHtml(token)}">${escapeHtml(tokenShort)}</div>
         <div class="nowrap"><a href="/offer-preview?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Preview</a></div>
       `;
-      const sendReminderBtn = e.next_reminder_kind
-        ? `<button onclick="sendReminderNow(${e.id})">Send reminder</button>`
-        : ``;
+	      const sendReminderBtn = e.next_reminder_kind
+	        ? `<button onclick="sendReminderNow(${e.id})">Send reminder</button>`
+	        : ``;
 
-      return `
+	      return `
         <tr>
           <td>${e.id}</td>
           <td>${statusPill(e.status)}</td>
-          <td>${eventTypePill(e)}</td>
           <td>${fullName}</td>
           <td class="nowrap">${escapeHtml(e.wedding_date)}</td>
           <td>${escapeHtml(e.venue)}</td>
           <td>${e.guest_count}</td>
           <td>${contact}</td>
-          <td>${pkgHtml}</td>
-          <td class="nowrap">${(e.reminder_count ?? 0)}</td>
-          <td class="nowrap">${escapeHtml(e.last_email_sent_at || '—')}</td>
-          <td>
-            ${e.next_reminder_due ? `<div class="nowrap">${escapeHtml(e.next_reminder_due)}</div><div class="muted" style="font-size:12px;">${escapeHtml(e.next_reminder_kind||'')}</div>` : `<span class="muted">—</span>`}
-          </td>
-          <td>${tokenLink}</td>
-          <td>
-            <div class="actions">
-              <button onclick="setStatus(${e.id}, 'accepted')">Accept</button>
-              <button onclick="setStatus(${e.id}, 'declined')">Decline</button>
-              <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
-              <button onclick="resendOffer(${e.id})">Resend</button>
-              ${sendReminderBtn}
-              <button onclick="openTimeline(${e.id})">Timeline</button>
-              <button onclick="openLogs(${e.id})">Logs</button>
-            </div>
+<td>${pkgHtml}</td>
+<td class="nowrap">${(e.reminder_count ?? 0)}</td>
+<td class="nowrap">${escapeHtml(e.last_email_sent_at || '—')}</td>
+<td>
+  ${e.next_reminder_due ? `<div class="nowrap">${escapeHtml(e.next_reminder_due)}</div><div class="muted" style="font-size:12px;">${escapeHtml(e.next_reminder_kind||'')}</div>` : `<span class="muted">—</span>`}
+</td>
+<td>${tokenLink}</td>
+<td>
+  <div class="actions">
+	    <button onclick="setStatus(${e.id}, 'accepted')">Accept</button>
+	    <button onclick="setStatus(${e.id}, 'declined')">Decline</button>
+	    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
+	    <button onclick="resendOffer(${e.id})">Resend</button>
+	    ${sendReminderBtn}
+        <button onclick="openLogs(${e.id})">Logs</button>
+	  </div>
           </td>
         </tr>
       `;
@@ -279,139 +260,101 @@
       render(items);
       msgEl.textContent = `Učitano: ${items.length}`;
     }catch(err){
-      tbody.innerHTML = `<tr><td colspan="14" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
-      msgEl.textContent = 'Greška';
+      tbody.innerHTML = `<tr><td colspan="13" style="color:#ffd0d1; padding:18px;">Greška: ${escapeHtml(String(err))}</td></tr>`;
+      msgEl.textContent = '';
     }
   }
 
   async function setStatus(id, status){
-    await apiJson(`/admin/api/events/${id}/status`,{
+    if(!confirm(`Postavi status "${status}" za ID ${id}?`)) return;
+    await apiJson(`/admin/api/events/${id}/status`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({status})
     });
-    load();
+    await load();
+  }
+
+  async function acceptEvent(id){
+    if(!confirm(`Accept za ID ${id}?`)) return;
+    await apiJson(`/admin/api/events/${id}/accept`, { method:'POST' });
+    await load();
+  }
+
+  async function declineEvent(id){
+    if(!confirm(`Decline za ID ${id}?`)) return;
+    await apiJson(`/admin/api/events/${id}/decline`, { method:'POST' });
+    await load();
   }
 
   async function resendOffer(id){
-    await apiJson(`/admin/api/events/${id}/resend`, {method:'POST'});
-    load();
+    if(!confirm('Resend offer email?')) return;
+    await apiJson(`/admin/api/events/${id}/resend`, { method:'POST' });
+    await load();
+    alert('Resend OK');
   }
 
-  async function sendReminderNow(id){
-    await apiJson(`/admin/api/events/${id}/send-reminder-now`, {method:'POST'});
-    load();
-  }
 
-  async function openLogs(id){
-    try{
-      const data = await apiJson(`/admin/api/events/${id}/email-logs`);
-      const w = window.open('', '_blank');
-      if(!w){ alert('Popup blocked'); return; }
 
-      const safe = JSON.stringify(data,null,2).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      w.document.write(`
-        <!doctype html>
-        <html>
-        <head>
-          <title>Email logs</title>
-          <style>
-            body{font-family:system-ui;padding:20px;background:#0b1220;color:#e5e7eb}
-            pre{white-space:pre-wrap}
-          </style>
-        </head>
-        <body>
-          <h2>Email logs — event ${id}</h2>
-          <pre>${safe}</pre>
-        </body>
-        </html>
-      `);
-      w.document.close();
-    }catch(err){
-      alert('Greška (logs): ' + (err?.message || err));
-    }
-  }
-
-  // Timeline modal (email + notes)
-  let currentTimelineEventId = null;
-
-  function closeTimeline(){
-    document.getElementById('timelineModal').style.display = 'none';
-    currentTimelineEventId = null;
-    document.getElementById('timelineBody').innerHTML = '';
-    document.getElementById('noteText').value = '';
-  }
-
-  async function openTimeline(id){
-    currentTimelineEventId = id;
-    document.getElementById('timelineTitle').textContent = `Event #${id}`;
-    document.getElementById('timelineBody').innerHTML = '<div class="muted" style="padding:10px 0;">Učitavanje…</div>';
-    document.getElementById('timelineModal').style.display = 'flex';
-    await refreshTimeline();
-  }
-
-  async function refreshTimeline(){
-    if(!currentTimelineEventId) return;
-    const items = await apiJson(`/admin/api/events/${currentTimelineEventId}/timeline`);
-    const body = document.getElementById('timelineBody');
-
-    if(!items.length){
-      body.innerHTML = '<div class="muted" style="padding:10px 0;">Nema aktivnosti.</div>';
+async function openLogs(id){
+  try{
+    const data = await apiJson(`/admin/api/events/${id}/email-logs`);
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('Popup blocked');
       return;
     }
+    const safe = JSON.stringify(data, null, 2)
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
 
-    body.innerHTML = items.map(it => {
-      const when = it.created_at ? escapeHtml(it.created_at) : '';
-      if(it.type === 'note'){
-        return `<div style="padding:10px 12px; border:1px solid rgba(255,255,255,.10); border-radius:14px; margin-bottom:10px; background:rgba(255,255,255,.04);">
-          <div class="muted" style="font-size:12px;">📝 Note • ${when}</div>
-          <div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(it.label || '')}</div>
-        </div>`;
-      }
-      const st = it.status ? ` • ${escapeHtml(it.status)}` : '';
-      const subj = it.subject ? `<div class="muted" style="margin-top:4px;">${escapeHtml(it.subject)}</div>` : '';
-      return `<div style="padding:10px 12px; border:1px solid rgba(255,255,255,.10); border-radius:14px; margin-bottom:10px; background:rgba(255,255,255,.03);">
-        <div class="muted" style="font-size:12px;">✉️ Email${st} • ${when}</div>
-        <div style="margin-top:6px;">${escapeHtml(it.label || '')}</div>
-        ${subj}
-      </div>`;
-    }).join('');
+    w.document.write(`
+      <!doctype html>
+      <html>
+      <head>
+        <title>Email logs</title>
+        <style>
+          body{font-family:system-ui;padding:20px;background:#0b1220;color:#e5e7eb}
+          pre{white-space:pre-wrap}
+        </style>
+      </head>
+      <body>
+        <h2>Email logs — event ${id}</h2>
+        <pre>${safe}</pre>
+      </body>
+      </html>
+    `);
+    w.document.close();
+  }catch(err){
+    alert('Greška (logs): ' + (err?.message || err));
   }
+}
 
-  async function addNote(){
-    const text = (document.getElementById('noteText').value || '').trim();
-    if(!text) return;
-    await apiJson(`/admin/api/events/${currentTimelineEventId}/notes`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text})
-    });
-    document.getElementById('noteText').value = '';
-    await refreshTimeline();
-  }
+
+async function sendReminderNow(id){
+  if(!confirm('Send reminder now?')) return;
+  await apiJson(`/admin/api/events/${id}/send-reminder-now`, { method:'POST' });
+  await load();
+  alert('Reminder sent (or already sent).');
+}
+
+  window.setStatus = setStatus;
+  window.acceptEvent = acceptEvent;
+  window.declineEvent = declineEvent;
+  window.resendOffer = resendOffer;
+  window.sendReminderNow = sendReminderNow;
+  window.openLogs = openLogs;
+
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('logout').addEventListener('click', async () => {
+    try{ await apiNoJson('/admin/logout', {method:'POST'}); }catch(e){}
+    location.reload();
+  });
+
+  qEl.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') load(); });
+  statusEl.addEventListener('change', load);
 
   load();
 </script>
-
-<!-- Timeline modal -->
-<div id="timelineModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9999; align-items:center; justify-content:center;">
-  <div style="width:min(920px,92vw); max-height:85vh; overflow:auto; background:#0b1220; border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:16px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-      <div>
-        <div class="muted" style="font-size:12px;">Timeline</div>
-        <h3 id="timelineTitle" style="margin:4px 0 0;">Event</h3>
-      </div>
-      <button onclick="closeTimeline()" style="padding:6px 10px;">Close</button>
-    </div>
-
-    <div style="margin-top:12px; display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
-      <textarea id="noteText" placeholder="Dodaj internu bilješku…" rows="2" style="flex:1; min-width:280px; background:#0f172a; color:#e5e7eb; border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:10px;"></textarea>
-      <button onclick="addNote()" style="padding:10px 12px;">Add note</button>
-    </div>
-
-    <div id="timelineBody" style="margin-top:14px;"></div>
-  </div>
-</div>
-
 </body>
 </html>
