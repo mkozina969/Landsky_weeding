@@ -234,7 +234,7 @@ try:
             if not col_exists("event_type"):
                 conn.execute(text("ALTER TABLE events ADD COLUMN event_type VARCHAR NULL"))
             if not col_exists("offer_expires_at"):
-     conn.execute(text("ALTER TABLE events ADD COLUMN offer_expires_at TIMESTAMP NULL"))
+                conn.execute(text("ALTER TABLE events ADD COLUMN offer_expires_at TIMESTAMP NULL"))
 except Exception as ex:
     logger.exception("MIGRATIONS skipped/failed")
 
