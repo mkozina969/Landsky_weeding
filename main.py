@@ -35,6 +35,28 @@ logging.basicConfig(
 
 logger = logging.getLogger("landsly")
 
+def log_evt(level: str, action: str, event_id: Optional[int] = None, email_type: Optional[str] = None, **kw):
+    """Lightweight structured-ish logging without external deps."""
+    parts = [f"action={action}"]
+    if event_id is not None:
+        parts.append(f"event_id={event_id}")
+    if email_type is not None:
+        parts.append(f"email_type={email_type}")
+    for k, v in kw.items():
+        if v is None:
+            continue
+        parts.append(f"{k}={v}")
+    msg = " ".join(parts)
+    if level.lower() == "debug":
+        logger.debug(msg)
+    elif level.lower() == "warning":
+        logger.warning(msg)
+    elif level.lower() == "error":
+        logger.error(msg)
+    else:
+        logger.info(msg)
+
+
 # ======================
 # ENV
 # ======================
@@ -504,33 +526,76 @@ def internal_email_body(e: Event) -> str:
 
 
 def send_offer_flow(e: Event, db: Optional[Session] = None):
-    # internal notification
-    subject_internal = f"Novi upit: {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
-    body_internal = internal_email_body(e)
-    if db is not None:
-        send_email_logged(db, e.id, "internal_new_inquiry", CATERING_TEAM_EMAIL, subject_internal, body_internal)
-    else:
-        send_email(CATERING_TEAM_EMAIL, subject_internal, body_internal)
+    """Send internal notification + customer offer.
 
-
-    # offer email
-    offer_recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
-    subject_offer = f"Ponuda – {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
-    body_offer = render_offer_html(e)
-    if db is not None:
-        send_email_logged(db, e.id, "offer", offer_recipient, subject_offer, body_offer)
-    else:
-        send_email(offer_recipient, subject_offer, body_offer)
+    Idempotency: when db is provided, we atomically *claim* offer_sent_at to prevent duplicates.
+    """
+    claim_ts: Optional[datetime] = None
 
     if db is not None:
-        now = datetime.utcnow()
-        e.last_email_sent_at = now
-        e.offer_sent_at = now
-        e.reminder_count = 0
-        e.reminder_3d_sent_at = None
-        e.reminder_7d_sent_at = None
-        e.updated_at = now
+        # Atomically claim the initial offer send (prevents retries / double-clicks).
+        claim_ts = datetime.utcnow()
+        res = db.execute(
+            text(
+                "UPDATE events SET offer_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
+                "WHERE id=:id AND offer_sent_at IS NULL"
+            ),
+            {"now": claim_ts, "id": e.id},
+        )
         db.commit()
+        if res.rowcount != 1:
+            log_evt("info", "offer_skipped", event_id=e.id, email_type="offer", reason="already_sent")
+            return
+
+    try:
+        # internal notification
+        subject_internal = f"Novi upit: {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
+        body_internal = internal_email_body(e)
+        if db is not None:
+            send_email_logged(db, e.id, "internal_new_inquiry", CATERING_TEAM_EMAIL, subject_internal, body_internal)
+        else:
+            send_email(CATERING_TEAM_EMAIL, subject_internal, body_internal)
+
+        # offer email
+        offer_recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+        subject_offer = f"Ponuda – {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
+        body_offer = render_offer_html(e)
+        if db is not None:
+            send_email_logged(db, e.id, "offer", offer_recipient, subject_offer, body_offer)
+        else:
+            send_email(offer_recipient, subject_offer, body_offer)
+
+        if db is not None:
+            now = datetime.utcnow()
+            # Keep these resets for the reminder flow
+            e.last_email_sent_at = now
+            e.reminder_count = 0
+            e.reminder_3d_sent_at = None
+            e.reminder_7d_sent_at = None
+            e.updated_at = now
+            db.commit()
+
+        log_evt("info", "offer_sent", event_id=e.id, email_type="offer", recipient=offer_recipient)
+
+    except Exception:
+        # If we claimed but failed to send, revert claim so the system can retry safely.
+        if db is not None and claim_ts is not None:
+            try:
+                db.execute(
+                    text(
+                        "UPDATE events SET offer_sent_at=NULL "
+                        "WHERE id=:id AND offer_sent_at=:ts"
+                    ),
+                    {"id": e.id, "ts": claim_ts},
+                )
+                db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        log_evt("error", "offer_failed", event_id=e.id, email_type="offer")
+        raise
 
 
 def reminder_email_body(e: Event) -> str:
@@ -594,11 +659,13 @@ def reminder_job():
                     db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": 927341}).scalar()
                 )
                 if not lock_acquired:
-                    logger.info("reminder_job: lock not acquired, skipping")
+                    log_evt("info", "reminder_job_skipped", reason="lock_not_acquired")
                     return
             except Exception:
-                # If lock fails for any reason, proceed without it (still idempotent by DB flags)
+                # Safer to skip than to risk duplicate sends.
                 logger.exception("reminder_job: advisory lock error")
+                log_evt("error", "reminder_job_skipped", reason="lock_error")
+                return
 
         # 1) Offer reminders (pending)
         pending = db.query(Event).filter(Event.status == "pending").all()
@@ -609,39 +676,91 @@ def reminder_job():
 
             # 3-day (or REMINDER_DAY_1) reminder
             if e.reminder_3d_sent_at is None and (now - base).days >= REMINDER_DAY_1:
-                # Claim atomically
+                claim_ts = now
                 res = db.execute(
                     text(
                         "UPDATE events SET reminder_3d_sent_at=:now, last_email_sent_at=:now, "
                         "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
                         "WHERE id=:id AND reminder_3d_sent_at IS NULL"
                     ),
-                    {"now": now, "id": e.id},
+                    {"now": claim_ts, "id": e.id},
                 )
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email_logged(db, e.id, "offer_3d", get_reminder_recipient(e, "offer_3d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(
+                            db,
+                            e.id,
+                            "offer_3d",
+                            get_reminder_recipient(e, "offer_3d"),
+                            "Podsjetnik — Landsky ponuda",
+                            reminder_email_body(e),
+                        )
+                        log_evt("info", "reminder_sent", event_id=e.id, email_type="offer_3d")
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_3d)", extra={"event_id": e.id})
+                        # revert claim so it can retry
+                        try:
+                            db.execute(
+                                text(
+                                    "UPDATE events SET reminder_3d_sent_at=NULL, "
+                                    "reminder_count=GREATEST(COALESCE(reminder_count,1)-1,0), "
+                                    "updated_at=:now "
+                                    "WHERE id=:id AND reminder_3d_sent_at=:ts"
+                                ),
+                                {"now": datetime.utcnow(), "id": e.id, "ts": claim_ts},
+                            )
+                            db.commit()
+                        except Exception:
+                            try:
+                                db.rollback()
+                            except Exception:
+                                pass
+                        log_evt("error", "reminder_failed", event_id=e.id, email_type="offer_3d")
                 continue
 
             # 7-day (or REMINDER_DAY_2) reminder
             if e.reminder_3d_sent_at is not None and e.reminder_7d_sent_at is None and (now - base).days >= REMINDER_DAY_2:
+                claim_ts = now
                 res = db.execute(
                     text(
                         "UPDATE events SET reminder_7d_sent_at=:now, last_email_sent_at=:now, "
                         "reminder_count=COALESCE(reminder_count,0)+1, updated_at=:now "
                         "WHERE id=:id AND reminder_7d_sent_at IS NULL"
                     ),
-                    {"now": now, "id": e.id},
+                    {"now": claim_ts, "id": e.id},
                 )
                 db.commit()
                 if res.rowcount == 1:
                     try:
-                        send_email_logged(db, e.id, "offer_7d", get_reminder_recipient(e, "offer_7d"), "Podsjetnik — Landsky ponuda", reminder_email_body(e))
+                        send_email_logged(
+                            db,
+                            e.id,
+                            "offer_7d",
+                            get_reminder_recipient(e, "offer_7d"),
+                            "Podsjetnik — Landsky ponuda",
+                            reminder_email_body(e),
+                        )
+                        log_evt("info", "reminder_sent", event_id=e.id, email_type="offer_7d")
                     except Exception:
                         logger.exception("reminder_job: send failed (offer_7d)", extra={"event_id": e.id})
+                        try:
+                            db.execute(
+                                text(
+                                    "UPDATE events SET reminder_7d_sent_at=NULL, "
+                                    "reminder_count=GREATEST(COALESCE(reminder_count,1)-1,0), "
+                                    "updated_at=:now "
+                                    "WHERE id=:id AND reminder_7d_sent_at=:ts"
+                                ),
+                                {"now": datetime.utcnow(), "id": e.id, "ts": claim_ts},
+                            )
+                            db.commit()
+                        except Exception:
+                            try:
+                                db.rollback()
+                            except Exception:
+                                pass
+                        log_evt("error", "reminder_failed", event_id=e.id, email_type="offer_7d")
 
         # 2) Accepted events: 2 days before wedding date (only once)
         accepted = db.query(Event).filter(Event.status == "accepted").all()
@@ -655,21 +774,44 @@ def reminder_job():
                 continue
 
             recipient = get_reminder_recipient(e, "event_2d")
+            claim_ts = now
 
-            # internal recipient (catering team)
             res = db.execute(
                 text(
                     "UPDATE events SET event_2d_sent_at=:now, last_email_sent_at=:now, updated_at=:now "
                     "WHERE id=:id AND event_2d_sent_at IS NULL"
                 ),
-                {"now": now, "id": e.id},
+                {"now": claim_ts, "id": e.id},
             )
             db.commit()
             if res.rowcount == 1:
                 try:
-                    send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro doga", event_2d_email_body(e))
+                    send_email_logged(
+                        db,
+                        e.id,
+                        "event_2d",
+                        recipient,
+                        "Podsjetnik — uskoro događaj",
+                        event_2d_email_body(e),
+                    )
+                    log_evt("info", "reminder_sent", event_id=e.id, email_type="event_2d")
                 except Exception:
                     logger.exception("reminder_job: send failed (event_2d)", extra={"event_id": e.id})
+                    try:
+                        db.execute(
+                            text(
+                                "UPDATE events SET event_2d_sent_at=NULL, updated_at=:now "
+                                "WHERE id=:id AND event_2d_sent_at=:ts"
+                            ),
+                            {"now": datetime.utcnow(), "id": e.id, "ts": claim_ts},
+                        )
+                        db.commit()
+                    except Exception:
+                        try:
+                            db.rollback()
+                        except Exception:
+                            pass
+                    log_evt("error", "reminder_failed", event_id=e.id, email_type="event_2d")
 
     except Exception:
         logger.exception("REMINDER JOB ERROR")
@@ -693,6 +835,29 @@ def reminder_job():
 # ======================
 
 app = FastAPI(title="Landsky Wedding App")
+
+@app.get("/health")
+def health(db: Session = Depends(db_session)):
+    # DB connectivity check
+    try:
+        db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    sched = getattr(app.state, "scheduler", None)
+    sched_running = bool(getattr(sched, "running", False)) if sched is not None else False
+
+    ok = bool(db_ok)
+    return {
+        "ok": ok,
+        "db": "ok" if db_ok else "error",
+        "scheduler": {
+            "enabled": bool(REMINDERS_ENABLED),
+            "running": sched_running,
+        },
+    }
+
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
@@ -701,9 +866,9 @@ def _startup():
     Base.metadata.create_all(bind=engine)
     if REMINDERS_ENABLED and BackgroundScheduler is not None:
         scheduler = BackgroundScheduler()
+        app.state.scheduler = scheduler
         scheduler.add_job(reminder_job, "interval", hours=1)
         scheduler.start()
-        app.state.scheduler = scheduler
         logger.info("Reminder scheduler started.")
     else:
         logger.info("Reminder scheduler disabled or APScheduler not installed.")
@@ -1080,12 +1245,64 @@ def admin_resend_offer(
     db: Session = Depends(db_session),
     _: None = Depends(require_admin),
 ):
+    """Resend offer (admin action).
+
+    Idempotency: prevent duplicate sends from retries / double-clicks using:
+    - per-event Postgres advisory lock (best-effort)
+    - short-window dedupe via EmailLog
+    """
     _require_admin(request)
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
-    send_offer_flow(e, db=db)
-    return {"ok": True}
+
+    # Best-effort per-event lock (Postgres only). If not acquired, skip quietly.
+    lock_acquired = False
+    if not ("sqlite" in str(engine.url)):
+        try:
+            lock_key = 900000 + int(event_id)
+            lock_acquired = bool(db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_key}).scalar())
+            if not lock_acquired:
+                log_evt("info", "resend_skipped", event_id=event_id, email_type="resend_offer", reason="lock_not_acquired")
+                return {"ok": True, "skipped": True}
+        except Exception:
+            # safer to skip than to risk duplicate sends
+            log_evt("error", "resend_skipped", event_id=event_id, email_type="resend_offer", reason="lock_error")
+            return {"ok": True, "skipped": True}
+
+    try:
+        # Short-window dedupe (60s)
+        cutoff = datetime.utcnow() - timedelta(seconds=60)
+        recent = (
+            db.query(EmailLog)
+            .filter(EmailLog.event_id == event_id, EmailLog.email_type == "resend_offer", EmailLog.created_at >= cutoff)
+            .first()
+        )
+        if recent:
+            log_evt("info", "resend_skipped", event_id=event_id, email_type="resend_offer", reason="recent_dedupe")
+            return {"ok": True, "skipped": True}
+
+        # Send without touching offer_sent_at; this is an explicit resend.
+        offer_recipient = CATERING_TEAM_EMAIL if TEST_MODE else e.email
+        subject_offer = f"Ponuda – {e.first_name} {e.last_name}{' (TEST)' if TEST_MODE else ''}"
+        body_offer = render_offer_html(e)
+        send_email_logged(db, e.id, "resend_offer", offer_recipient, subject_offer, body_offer)
+
+        now = datetime.utcnow()
+        e.last_email_sent_at = now
+        e.updated_at = now
+        db.commit()
+
+        log_evt("info", "resend_sent", event_id=event_id, email_type="resend_offer", recipient=offer_recipient)
+        return {"ok": True}
+
+    finally:
+        if lock_acquired and not ("sqlite" in str(engine.url)):
+            try:
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": 900000 + int(event_id)})
+                db.commit()
+            except Exception:
+                pass
 
 
 @app.post("/admin/api/events/{event_id}/send-reminder-now")
