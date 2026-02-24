@@ -487,8 +487,8 @@ def internal_email_body(e: Event) -> str:
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <h2>Novi upit</h2>
   <ul>
-    <li><b>Mladenci:</b> {html.escape(e.first_name)} {html.escape(e.last_name)}</li>
-    <li><b>Email mladenaca:</b> {html.escape(e.email)}</li>
+    <li><b>Klijent:</b> {html.escape(e.first_name)} {html.escape(e.last_name)}</li>
+    <li><b>Email klijenta:</b> {html.escape(e.email)}</li>
     <li><b>Telefon:</b> {html.escape(e.phone)}</li>
     <li><b>Datum:</b> {html.escape(str(e.wedding_date))}</li>
     <li><b>Sala:</b> {html.escape(e.venue)}</li>
@@ -551,7 +551,7 @@ def reminder_email_body(e: Event) -> str:
 def event_2d_email_body(e: Event) -> str:
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik — Vaše vjenčanje je uskoro</h2>
+  <h2>Podsjetnik — Vaš događaj je uskoro</h2>
   <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
   <p>Samo kratka potvrda da smo sve spremni za vaš datum <b>{html.escape(str(e.wedding_date))}</b> na lokaciji <b>{html.escape(e.venue)}</b>.</p>
   <p>Ako imate bilo kakve promjene oko broja gostiju ili detalja, slobodno nam se javite.</p>
@@ -571,7 +571,7 @@ def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
             if e.reminder_7d_sent_at is None:
                 return ("offer_7d", base + timedelta(days=REMINDER_DAY_2))
 
-    # 2 days before wedding date for accepted
+    # 2 days before event date for accepted
     if e.status == "accepted" and e.event_2d_sent_at is None and e.wedding_date:
         event_dt = datetime.combine(e.wedding_date, time(12, 0))
         return ("event_2d", event_dt - timedelta(days=2))
@@ -667,7 +667,7 @@ def reminder_job():
             db.commit()
             if res.rowcount == 1:
                 try:
-                    send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+                    send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro doga", event_2d_email_body(e))
                 except Exception:
                     logger.exception("reminder_job: send failed (event_2d)", extra={"event_id": e.id})
 
@@ -1149,7 +1149,7 @@ def admin_send_reminder_now(
         db.commit()
         if res.rowcount != 1:
             return {"ok": True, "skipped": True}
-        send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro vjenčanje", event_2d_email_body(e))
+        send_email_logged(db, e.id, "event_2d", recipient, "Podsjetnik — uskoro događaj", event_2d_email_body(e))
         return {"ok": True}
 
     raise HTTPException(status_code=400, detail="Invalid reminder type")
