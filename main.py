@@ -506,7 +506,11 @@ def render_offer_html(e: Event) -> str:
       </div>
 
       <div style="margin-top:16px; font-size:12px; color:#666;">
-        Ovaj email je generiran automatski. Ako trebate pomoć, odgovorite na ovaj email.
+        Ovaj email je generiran automatski. Ako trebate pomoć, odgovorite na ovaj email ili kontaktirajte 
+        <a href="mailto:catering@landskybar.com" 
+        style="color:#666; text-decoration:underline;">
+        catering@landskybar.com
+        </a>  
       </div>
     </div>
   </div>
