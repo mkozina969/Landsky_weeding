@@ -70,15 +70,7 @@ PACKAGE_LABELS = {
 # DB
 # ======================
 
-connect_args = {}
-
-if DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
-elif DATABASE_URL.startswith("postgres"):
-    # Neon TLS fix (vracamo staro ponasanje)
-    import ssl
-    connect_args = {"ssl_context": ssl.create_default_context()}
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, connect_args={} if "sqlite" not in DATABASE_URL else {"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
