@@ -412,18 +412,16 @@ def render_offer_html(e: Event) -> str:
     msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
 
     return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
-  <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
-    <div style="background:#221E27; padding:18px 18px 12px 18px;">
-      <div style="display:flex; align-items:center; gap:14px;">
-        <img src="{logo_url}" alt="Landsky Cocktail Catering"
-          style="width:80px; height:80px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
-        <div style="color:#fff;">
-          <div style="font-size:18px; font-weight:700; letter-spacing:.20px;">Landsky Cocktail Catering</div>
-          <div style="font-size:13px; opacity:.85;">Ponuda</div>
-        </div>
-      </div>
+<div style="background:#221E27; padding:18px 18px 12px 18px;">
+  <div style="display:flex; align-items:center; justify-content:center; gap:14px;">
+    <img src="{logo_url}" alt="Landsky Cocktail Catering"
+      style="width:80px; height:80px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
+    <div style="color:#fff; text-align:left;">
+      <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
+      <div style="font-size:13px; opacity:.85;">Ponuda</div>
     </div>
+  </div>
+</div>
 
     <div style="padding:18px;">
       <div style="font-size:14px;">
