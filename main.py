@@ -412,23 +412,32 @@ def render_offer_html(e: Event) -> str:
     msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
 
     return f"""
-<div style="background:#221E27; padding:18px;">
-  <div style="display:flex; align-items:center;">
-    
-    <img src="{logo_url}" alt="Landsky Cocktail Catering"
-      style="width:80px; height:80px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
+<!-- PREMIUM HEADER (email-safe table layout) -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#221E27;">
+  <tr>
+    <!-- LEFT: logo -->
+    <td width="110" align="left" valign="middle" style="padding:18px;">
+      <img src="{logo_url}" alt="Landsky Cocktail Catering"
+           width="80" height="80"
+           style="display:block; width:80px; height:80px; object-fit:contain; border-radius:14px; background:#ffffff; padding:8px; border:0;" />
+    </td>
 
-    <div style="flex:1; text-align:center; color:#fff;">
-      <div style="font-size:18px; font-weight:700;">
-        Landsky Cocktail Catering
+    <!-- CENTER: title (perfectly centered) -->
+    <td align="center" valign="middle" style="padding:18px 10px;">
+      <div style="font-family:Arial, sans-serif; color:#ffffff;">
+        <div style="font-size:20px; font-weight:700; letter-spacing:.2px; line-height:1.2;">
+          Landsky Cocktail Catering
+        </div>
+        <div style="font-size:13px; opacity:.85; margin-top:4px;">
+          Ponuda
+        </div>
       </div>
-      <div style="font-size:13px; opacity:.85;">
-        Ponuda
-      </div>
-    </div>
+    </td>
 
-  </div>
-</div>
+    <!-- RIGHT: spacer to balance logo width (keeps center truly centered) -->
+    <td width="110" valign="middle" style="padding:18px;">&nbsp;</td>
+  </tr>
+</table>
 
     <div style="padding:18px;">
       <div style="font-size:14px;">
