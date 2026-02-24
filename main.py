@@ -1114,6 +1114,7 @@ def admin_send_reminder_now(
     db: Session = Depends(db_session),
     _: None = Depends(require_admin),
 ):
+    pass
 
 @app.post("/admin/api/events/{event_id}/notes")
 def admin_add_note(event_id:int, body:dict, db:Session=Depends(db_session), _:None=Depends(require_admin)):
