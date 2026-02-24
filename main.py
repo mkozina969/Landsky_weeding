@@ -146,7 +146,8 @@ class Event(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
+    event_type = Column(String(30), nullable=True, default="wedding")
+    offer_expires_at = Column(DateTime, nullable=True)
 
 class EmailLog(Base):
     __tablename__ = "email_logs"
@@ -169,7 +170,15 @@ class EmailLog(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- MVP migrations (best-effort) ---
+class EventNote(Base):
+    __tablename__ = "event_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), index=True, nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # --- MVP migrations (best-effort) ---
 try:
     with engine.begin() as conn:
         if "sqlite" in str(engine.url):
@@ -222,6 +231,10 @@ try:
                 conn.execute(text("ALTER TABLE events ADD COLUMN reminder_7d_sent_at TIMESTAMP NULL"))
             if not col_exists("event_2d_sent_at"):
                 conn.execute(text("ALTER TABLE events ADD COLUMN event_2d_sent_at TIMESTAMP NULL"))
+            if not col_exists("event_type"):
+                conn.execute(text("ALTER TABLE events ADD COLUMN event_type VARCHAR NULL"))
+            if not col_exists("offer_expires_at"):
+     conn.execute(text("ALTER TABLE events ADD COLUMN offer_expires_at TIMESTAMP NULL"))
 except Exception as ex:
     logger.exception("MIGRATIONS skipped/failed")
 
@@ -526,6 +539,7 @@ def send_offer_flow(e: Event, db: Optional[Session] = None):
         now = datetime.utcnow()
         e.last_email_sent_at = now
         e.offer_sent_at = now
+        e.offer_expires_at = now + timedelta(days=14)
         e.reminder_count = 0
         e.reminder_3d_sent_at = None
         e.reminder_7d_sent_at = None
@@ -563,6 +577,8 @@ def event_2d_email_body(e: Event) -> str:
 def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
     """Returns (kind, due_at) where kind is: offer_3d, offer_7d, event_2d."""
     # Offer reminders for pending events
+    if e.offer_expires_at and e.offer_expires_at < datetime.utcnow():
+    return None, None
     if e.status == "pending":
         base = e.offer_sent_at or e.last_email_sent_at
         if base:
@@ -1095,6 +1111,45 @@ def admin_send_reminder_now(
     db: Session = Depends(db_session),
     _: None = Depends(require_admin),
 ):
+
+@app.post("/admin/api/events/{event_id}/notes")
+def admin_add_note(event_id:int, body:dict, db:Session=Depends(db_session), _:None=Depends(require_admin)):
+    txt = (body.get("text") or "").strip()
+    if not txt:
+        raise HTTPException(400, "Text required")
+
+    n = EventNote(event_id=event_id, text=txt)
+    db.add(n)
+    db.commit()
+    return {"ok":True}
+
+
+@app.get("/admin/api/events/{event_id}/timeline")
+def admin_timeline(event_id:int, db:Session=Depends(db_session), _:None=Depends(require_admin)):
+    emails = db.query(EmailLog).filter_by(event_id=event_id).all()
+    notes = db.query(EventNote).filter_by(event_id=event_id).all()
+
+    items = []
+
+    for e in emails:
+        items.append({
+            "type":"email",
+            "created_at":e.created_at,
+            "label":f"{e.email_type} → {e.to_email}",
+            "subject":e.subject,
+            "status":e.status
+        })
+
+    for n in notes:
+        items.append({
+            "type":"note",
+            "created_at":n.created_at,
+            "label":n.text
+        })
+
+    items.sort(key=lambda x: x["created_at"] or datetime.utcnow(), reverse=True)
+    return items
+    
     _require_admin(request)
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
