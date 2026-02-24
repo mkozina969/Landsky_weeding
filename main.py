@@ -417,7 +417,7 @@ def render_offer_html(e: Event) -> str:
     <div style="background:#ffffff; padding:18px 18px 12px 18px;">
       <div style="display:flex; align-items:center; gap:14px;">
         <img src="{logo_url}" alt="Landsky Cocktail Catering"
-          style="width:68px; height:68px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
+          style="width:80px; height:80px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
         <div style="color:#fff;">
           <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
           <div style="font-size:13px; opacity:.85;">Ponuda</div>
@@ -472,7 +472,7 @@ def render_offer_html(e: Event) -> str:
 
       <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fff;">
         <div style="font-weight:700; margin-bottom:8px;">Premium cigare (opcionalno)</div>
-        <div>Uz odabir cigara od nas dobivate humidor, rezac, upaljač i pepeljaru. Nudimo i Cigar Concierge uslugu — <b>450 EUR + PDV</b> (3 sata).</div>
+        <div>Uz odabir cigara od nas dobivate humidor, rezac, upaljač i pepeljaru.</div>
         <div style="margin-top:8px;">📎 Popis cigara: <a href="{cigare_img}" target="_blank" style="color:#0b57d0;">{cigare_img}</a></div>
         <div style="margin-top:8px;">Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.</div>
         <div style="margin-top:8px;">Rado Vas pozivamo na prezentaciju koktela u našem LandSky Baru (Draškovićeva 144), gdje ćemo Vam detaljno predstaviti našu uslugu i odabrati najbolje za vaš event.</div>
