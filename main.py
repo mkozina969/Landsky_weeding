@@ -576,9 +576,12 @@ def event_2d_email_body(e: Event) -> str:
 
 def compute_next_reminder(e: Event) -> tuple[Optional[str], Optional[datetime]]:
     """Returns (kind, due_at) where kind is: offer_3d, offer_7d, event_2d."""
+
+    # Stop offer reminders after expiry (only relevant for pending)
+    if e.status == "pending" and e.offer_expires_at and e.offer_expires_at < datetime.utcnow():
+        return (None, None)
+
     # Offer reminders for pending events
-    if e.offer_expires_at and e.offer_expires_at < datetime.utcnow():
-    return None, None
     if e.status == "pending":
         base = e.offer_sent_at or e.last_email_sent_at
         if base:
