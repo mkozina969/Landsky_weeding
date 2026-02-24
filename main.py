@@ -413,7 +413,7 @@ def render_offer_html(e: Event) -> str:
 
     return f"""
 <!-- PREMIUM HEADER (email-safe table layout) -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#221E27;">
+<table role="presentation" width="80%" cellpadding="0" cellspacing="0" style="background:#221E27;">
   <tr>
     <!-- LEFT: logo -->
     <td width="110" align="left" valign="middle" style="padding:18px;">
