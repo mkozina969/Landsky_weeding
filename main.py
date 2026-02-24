@@ -412,14 +412,21 @@ def render_offer_html(e: Event) -> str:
     msg_html = html.escape(msg).replace("\\n", "<br>") if msg else "(nema)"
 
     return f"""
-<div style="background:#221E27; padding:18px 18px 12px 18px;">
-  <div style="display:flex; align-items:center; justify-content:center; gap:14px;">
+<div style="background:#221E27; padding:18px;">
+  <div style="display:flex; align-items:center;">
+    
     <img src="{logo_url}" alt="Landsky Cocktail Catering"
       style="width:80px; height:80px; object-fit:contain; border-radius:12px; background:#ffffff; padding:6px;" />
-    <div style="color:#fff; text-align:left;">
-      <div style="font-size:18px; font-weight:700; letter-spacing:.2px;">Landsky Cocktail Catering</div>
-      <div style="font-size:13px; opacity:.85;">Ponuda</div>
+
+    <div style="flex:1; text-align:center; color:#fff;">
+      <div style="font-size:18px; font-weight:700;">
+        Landsky Cocktail Catering
+      </div>
+      <div style="font-size:13px; opacity:.85;">
+        Ponuda
+      </div>
     </div>
+
   </div>
 </div>
 
