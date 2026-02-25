@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import html
 import os
 from pathlib import Path
@@ -25,20 +26,16 @@ def render_offer_html(e: Event) -> str:
     """
     Offer email HTML.
 
-    IMPORTANT:
-    - Previously you had a rich inline template (fallback) and a simpler frontend/offer.html.
-    - If frontend/offer.html exists, the old code always used it -> you "lost" sections/links.
-    - Now we default to the rich inline template, unless USE_FRONTEND_OFFER_TEMPLATE=true.
+    - If USE_FRONTEND_OFFER_TEMPLATE=true AND frontend/offer.html exists -> use it.
+    - Otherwise use the rich inline template (your previous "fallback", with all sections/links).
     """
     use_frontend = os.getenv("USE_FRONTEND_OFFER_TEMPLATE", "").strip().lower() in ("1", "true", "yes", "on")
 
     template_path = ROOT / "frontend" / "offer.html"
     if use_frontend and template_path.exists():
         tpl = template_path.read_text(encoding="utf-8")
-
         msg = (e.message or "").strip()
         msg_html = _nl2br_escaped(msg) if msg else ""
-
         return (
             tpl.replace("{{FIRST_NAME}}", html.escape(e.first_name))
             .replace("{{LAST_NAME}}", html.escape(e.last_name))
@@ -53,7 +50,7 @@ def render_offer_html(e: Event) -> str:
             .replace("{{BASE_URL}}", BASE_URL)
         )
 
-    # -------- Rich inline template (your "BEFORE") --------
+    # -------- Rich inline template (FULL version with links) --------
     logo_url = f"{BASE_URL}/frontend/logo.png"
     cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
     bar_img = f"{BASE_URL}/frontend/bar.jpeg"
@@ -120,9 +117,9 @@ def render_offer_html(e: Event) -> str:
         </div>
 
         <div style="font-weight:700; margin:10px 0 6px 0;">Cijene paketa</div>
-        <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) - dodatnih 100: 500 EUR + PDV</div>
-        <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) - dodatnih 100: 600 EUR + PDV</div>
-        <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) - dodatnih 100: 800 EUR + PDV</div>
+        <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
+        <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) — dodatnih 100: 600 EUR + PDV</div>
+        <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) — dodatnih 100: 800 EUR + PDV</div>
 
         <div style="margin-top:10px;">* Preporučujemo 200 koktela.</div>
 
@@ -133,7 +130,7 @@ def render_offer_html(e: Event) -> str:
 
       <div style="margin-top:14px; padding:14px; border:1px solid #eee; border-radius:12px; background:#fff;">
         <div style="font-weight:700; margin-bottom:8px;">Premium cigare (opcionalno)</div>
-        <div>Uz odabir cigara od nas dobivate humidor, rezac, upaljač i pepeljaru.</div>
+        <div>Uz odabir cigara od nas dobivate humidor, rezač, upaljač i pepeljaru.</div>
         <div style="margin-top:8px;">📎 Popis cigara: <a href="{cigare_img}" target="_blank" style="color:#0b57d0;">{cigare_img}</a></div>
         <div style="margin-top:8px;">Za događaje izvan Zagreba naplaćuje se put <b>0,70 EUR/km</b>.</div>
         <div style="margin-top:8px;">
@@ -163,6 +160,7 @@ def render_offer_html(e: Event) -> str:
   </div>
 </div>
 """
+
 
 def internal_email_body(e: Event) -> str:
     preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
@@ -236,23 +234,4 @@ def event_2d_email_body(e: Event) -> str:
 
   <p>Za bilo kakva pitanja slobodno odgovorite na ovaj email.</p>
 </div>
-"""
-
-def event_2d_email_body(e: Event) -> str:
-    return f"""
-<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik - Vaš događaj je uskoro</h2>
-
-  <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
-
-  <p>
-    Veselimo se Vašem događaju
-    <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).
-  </p>
-
-  <p>
-    Ako imate dodatna pitanja ili izmjene, slobodno odgovorite na ovaj email.
-  </p>
-</div>
-"""
 """
