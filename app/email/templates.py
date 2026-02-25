@@ -164,12 +164,12 @@ def render_offer_html(e: Event) -> str:
 </div>
 """
 
-
 def internal_email_body(e: Event) -> str:
     preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
     admin_link = f"{BASE_URL}/admin"
     msg = (e.message or "").strip()
     msg_html = _nl2br_escaped(msg) if msg else "(nema)"
+
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <h2>Novi upit</h2>
@@ -181,12 +181,15 @@ def internal_email_body(e: Event) -> str:
     <li><b>Sala:</b> {html.escape(e.venue)}</li>
     <li><b>Gosti:</b> {e.guest_count}</li>
     <li><b>Status:</b> {html.escape(getattr(e, "status", ""))}</li>
-    <li><b>Odabrani paket:</b> {html.escape(getattr(e, "selected_package", "") or "-")}</li>
+    <li><b>Odabrani paket:</b> {html.escape(getattr(e, "selected_package", "") or "—")}</li>
   </ul>
   <p><b>Napomena / Pitanja:</b><br>{msg_html}</p>
   <p><b>Preview ponude:</b><br><a href="{preview_link}">{preview_link}</a></p>
   <p><b>Admin:</b> <a href="{admin_link}">{admin_link}</a></p>
 </div>
+"""
+
+
 def reminder_email_body(e: Event) -> str:
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
@@ -195,29 +198,43 @@ def reminder_email_body(e: Event) -> str:
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
   <h2>Podsjetnik - Landsky Cocktail Catering ponuda</h2>
 
-  <p>Postovani/Postovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+  <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
 
   <p>
-    Kratki podsjetnik vezano za nasu ponudu za datum
+    Samo kratki podsjetnik vezano za našu ponudu za datum
     <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).
   </p>
 
   <div style="margin-top:16px;">
-    <a href="{accept_link}" style="background:#1b5e20; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700;">
-      Prihvacam ponudu
+    <a href="{accept_link}" style="background:#1b5e20; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700; display:inline-block;">
+      ✅ Prihvaćam ponudu
     </a>
-    &nbsp;
-    <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700;">
-      Odbijam ponudu
+    <span style="display:inline-block; width:10px;"></span>
+    <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700; display:inline-block;">
+      ❌ Odbijam ponudu
     </a>
   </div>
 
   <div style="margin-top:20px; font-size:12px; color:#666; text-align:center;">
-    Ako trebate pomoc, odgovorite na ovaj email ili kontaktirajte
-    <a href="mailto:catering@landskybar.com" style="color:#666; text-decoration:underline;">
-      catering@landskybar.com
-    </a>
+    Ako trebate pomoć, odgovorite na ovaj email ili kontaktirajte
+    <a href="mailto:catering@landskybar.com" style="color:#666; text-decoration:underline;">catering@landskybar.com</a>
   </div>
+</div>
+"""
+
+
+def event_2d_email_body(e: Event) -> str:
+    return f"""
+<div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
+  <h2>Podsjetnik - Vaš događaj je uskoro</h2>
+
+  <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+
+  <p>
+    Veselimo se Vašem događaju <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).
+  </p>
+
+  <p>Za bilo kakva pitanja slobodno odgovorite na ovaj email.</p>
 </div>
 """
 
