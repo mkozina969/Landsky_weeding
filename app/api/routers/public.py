@@ -146,7 +146,7 @@ def accept_get(
         <div style="border:1px solid #eee;border-radius:14px;padding:16px;margin-bottom:14px;background:#fafafa;">
           <div style="font-weight:700;">Classic</div>
           <div style="font-size:13px;color:#666;margin-top:4px;">
-            Osnovna ponuda — idealno za manja i srednja događanja.
+            Osnovna ponuda — idealno za kratka događanja i većim brojem uzvanika.
           </div>
           <div style="margin-top:10px;">
             <a href="{BASE_URL}/accept?token={e.token}&package=classic"
@@ -160,7 +160,7 @@ def accept_get(
         <div style="border:1px solid #ffe8c2;border-radius:14px;padding:16px;margin-bottom:14px;background:#fff7ea;">
           <div style="font-weight:700;">Premium</div>
           <div style="font-size:13px;color:#666;margin-top:4px;">
-            Proširena ponuda — najčešći odabir.
+            Proširena ponuda — elegantnija i ekskluzivnija događanja.
           </div>
           <div style="margin-top:10px;">
             <a href="{BASE_URL}/accept?token={e.token}&package=premium"
