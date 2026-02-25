@@ -120,9 +120,9 @@ def render_offer_html(e: Event) -> str:
         </div>
 
         <div style="font-weight:700; margin:10px 0 6px 0;">Cijene paketa</div>
-        <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) — dodatnih 100: 500 EUR + PDV</div>
-        <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) — dodatnih 100: 600 EUR + PDV</div>
-        <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) — dodatnih 100: 800 EUR + PDV</div>
+        <div>• <b>Classic:</b> 1.000 EUR + PDV (100 koktela) - dodatnih 100: 500 EUR + PDV</div>
+        <div>• <b>Premium:</b> 1.200 EUR + PDV (100 koktela) - dodatnih 100: 600 EUR + PDV</div>
+        <div>• <b>Signature:</b> 1.500 EUR + PDV (100 koktela) - dodatnih 100: 800 EUR + PDV</div>
 
         <div style="margin-top:10px;">* Preporučujemo 200 koktela.</div>
 
@@ -181,7 +181,7 @@ def internal_email_body(e: Event) -> str:
     <li><b>Sala:</b> {html.escape(e.venue)}</li>
     <li><b>Gosti:</b> {e.guest_count}</li>
     <li><b>Status:</b> {html.escape(getattr(e, "status", ""))}</li>
-    <li><b>Odabrani paket:</b> {html.escape(getattr(e, "selected_package", "") or "—")}</li>
+    <li><b>Odabrani paket:</b> {html.escape(getattr(e, "selected_package", "") or "-")}</li>
   </ul>
   <p><b>Napomena / Pitanja:</b><br>{msg_html}</p>
   <p><b>Preview ponude:</b><br><a href="{preview_link}">{preview_link}</a></p>
@@ -193,7 +193,7 @@ def reminder_email_body(e: Event) -> str:
 
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik — Landsky Cocktail Catering ponuda</h2>
+  <h2>Podsjetnik - Landsky Cocktail Catering ponuda</h2>
 
   <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
 
@@ -225,7 +225,7 @@ def reminder_email_body(e: Event) -> str:
 def event_2d_email_body(e: Event) -> str:
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
-  <h2>Podsjetnik — Vaš događaj je uskoro</h2>
+  <h2>Podsjetnik - Vaš događaj je uskoro</h2>
 
   <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
 
