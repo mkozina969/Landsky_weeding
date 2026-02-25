@@ -100,18 +100,102 @@ def accept_get(
             f"<h2>Hvala! Ponuda je prihvaćena.</h2><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>"
         )
 
-    # Show selection UI (simple)
+    # Show selection UI (RICH / PREMIUM)
+    logo_url = f"{BASE_URL}/frontend/logo.png"
+
     return HTMLResponse(
         f"""
-        <div style='font-family:Arial,sans-serif;max-width:720px;margin:30px auto;'>
-          <h2>Odaberite paket</h2>
-          <p>Molimo odaberite jedan od paketa:</p>
-          <ul>
-            <li><a href="{BASE_URL}/accept?token={e.token}&package=classic">Classic</a></li>
-            <li><a href="{BASE_URL}/accept?token={e.token}&package=premium">Premium</a></li>
-            <li><a href="{BASE_URL}/accept?token={e.token}&package=signature">Signature</a></li>
-          </ul>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Odabir paketa</title>
+</head>
+<body style="margin:0;background:#f5f6f8;font-family:Arial,sans-serif;color:#111;">
+  <div style="max-width:760px;margin:30px auto;padding:0 14px;">
+    <div style="border:1px solid #e8e8e8;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.06);">
+
+      <!-- Header -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#221E27;">
+        <tr>
+          <td width="110" align="left" style="padding:18px;">
+            <img src="{logo_url}" width="74" height="74"
+              alt="Landsky Cocktail Catering"
+              style="display:block;width:74px;height:74px;object-fit:contain;border-radius:14px;background:#ffffff;padding:8px;border:0;">
+          </td>
+          <td align="center" style="padding:18px 10px;">
+            <div style="color:#fff;">
+              <div style="font-size:20px;font-weight:700;letter-spacing:.2px;line-height:1.2;">
+                Landsky Cocktail Catering
+              </div>
+              <div style="font-size:13px;opacity:.85;margin-top:4px;">Potvrda ponude</div>
+            </div>
+          </td>
+          <td width="110"></td>
+        </tr>
+      </table>
+
+      <div style="padding:22px;">
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px;">Odaberite paket</div>
+        <div style="font-size:13px;color:#666;margin-bottom:18px;">
+          Molimo odaberite jedan od paketa za potvrdu ponude.
         </div>
+
+        <!-- Classic -->
+        <div style="border:1px solid #eee;border-radius:14px;padding:16px;margin-bottom:14px;background:#fafafa;">
+          <div style="font-weight:700;">Classic</div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">
+            Osnovna ponuda — idealno za manja i srednja događanja.
+          </div>
+          <div style="margin-top:10px;">
+            <a href="{BASE_URL}/accept?token={e.token}&package=classic"
+               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
+              Odaberi Classic
+            </a>
+          </div>
+        </div>
+
+        <!-- Premium -->
+        <div style="border:1px solid #ffe8c2;border-radius:14px;padding:16px;margin-bottom:14px;background:#fff7ea;">
+          <div style="font-weight:700;">Premium</div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">
+            Proširena ponuda — najčešći odabir.
+          </div>
+          <div style="margin-top:10px;">
+            <a href="{BASE_URL}/accept?token={e.token}&package=premium"
+               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
+              Odaberi Premium
+            </a>
+          </div>
+        </div>
+
+        <!-- Signature -->
+        <div style="border:1px solid #e8e8ff;border-radius:14px;padding:16px;background:#f5f5ff;">
+          <div style="font-weight:700;">Signature</div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">
+            Premium experience — potpuni wow efekt.
+          </div>
+          <div style="margin-top:10px;">
+            <a href="{BASE_URL}/accept?token={e.token}&package=signature"
+               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
+              Odaberi Signature
+            </a>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;font-size:12px;color:#777;text-align:center;">
+          Ako trebate pomoć, kontaktirajte
+          <a href="mailto:catering@landskybar.com" style="color:#666;text-decoration:underline;">
+            catering@landskybar.com
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
         """
     )
 
