@@ -195,32 +195,31 @@ def reminder_email_body(e: Event) -> str:
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
   <h2>Podsjetnik - Landsky Cocktail Catering ponuda</h2>
 
-  <p>Poštovani/Poštovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+  <p>Postovani/Postovana {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
 
   <p>
-    Samo kratki podsjetnik vezano za našu ponudu za datum
+    Kratki podsjetnik vezano za nasu ponudu za datum
     <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).
   </p>
 
   <div style="margin-top:16px;">
     <a href="{accept_link}" style="background:#1b5e20; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700;">
-      ✅ Prihvaćam ponudu
+      Prihvacam ponudu
     </a>
     &nbsp;
     <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-weight:700;">
-      ❌ Odbijam ponudu
+      Odbijam ponudu
     </a>
   </div>
 
   <div style="margin-top:20px; font-size:12px; color:#666; text-align:center;">
-    Ako trebate pomoć, odgovorite na ovaj email ili kontaktirajte
+    Ako trebate pomoc, odgovorite na ovaj email ili kontaktirajte
     <a href="mailto:catering@landskybar.com" style="color:#666; text-decoration:underline;">
       catering@landskybar.com
     </a>
   </div>
 </div>
 """
-
 
 def event_2d_email_body(e: Event) -> str:
     return f"""
