@@ -1,5 +1,5 @@
 import html
-import os
+from pathlib import Path
 
 from app.core.config import BASE_URL
 from app.db.models import Event
@@ -10,16 +10,33 @@ PACKAGE_LABELS = {
     "signature": "Signature",
 }
 
+# Project root = .../<repo_root>
+# This file is .../<repo_root>/app/email/templates.py
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _nl2br_escaped(text: str) -> str:
+    """Escape user text and convert newlines to <br> for HTML emails."""
+    return html.escape(text).replace("\n", "<br>")
+
 
 def render_offer_html(e: Event) -> str:
     """Render the offer email HTML.
 
-    If frontend/offer.html exists, we treat it as a simple template with placeholders.
-    Otherwise we fall back to the inline HTML version.
+    Primary source: frontend/offer.html (simple placeholder template).
+    Fallback: inline HTML defined below.
+
+    IMPORTANT: We use an absolute path to avoid working-directory issues on Render.
     """
-    template_path = os.path.join("frontend", "offer.html")
-    if os.path.exists(template_path):
-        tpl = open(template_path, "r", encoding="utf-8").read()
+    template_path = ROOT / "frontend" / "offer.html"
+
+    if template_path.exists():
+        tpl = template_path.read_text(encoding="utf-8")
+
+        # Keep message formatting pleasant in HTML emails
+        msg = (e.message or "").strip()
+        msg_html = _nl2br_escaped(msg) if msg else ""
+
         return (
             tpl.replace("{{FIRST_NAME}}", html.escape(e.first_name))
             .replace("{{LAST_NAME}}", html.escape(e.last_name))
@@ -28,20 +45,19 @@ def render_offer_html(e: Event) -> str:
             .replace("{{GUEST_COUNT}}", str(e.guest_count))
             .replace("{{EMAIL}}", html.escape(e.email))
             .replace("{{PHONE}}", html.escape(e.phone))
-            .replace("{{MESSAGE}}", html.escape((e.message or "").strip()))
+            # Keep both placeholders usable depending on your template:
+            .replace("{{MESSAGE}}", msg_html or html.escape((e.message or "").strip()))
             .replace("{{ACCEPT_URL}}", f"{BASE_URL}/accept?token={e.token}")
             .replace("{{DECLINE_URL}}", f"{BASE_URL}/decline?token={e.token}")
             .replace("{{BASE_URL}}", BASE_URL)
         )
 
+    # -------- Inline fallback (keep minimal & safe) --------
     logo_url = f"{BASE_URL}/frontend/logo.png"
     cocktails_pdf = f"{BASE_URL}/frontend/cocktails.pdf"
-    bar_img = f"{BASE_URL}/frontend/bar.jpeg"
-    cigare_img = f"{BASE_URL}/frontend/cigare.png"
     accept_link = f"{BASE_URL}/accept?token={e.token}"
     decline_link = f"{BASE_URL}/decline?token={e.token}"
 
-    # NOTE: This is your inline fallback. Keep edits here minimal.
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <div style="max-width:720px; margin:0 auto; border:1px solid #eee; border-radius:14px; overflow:hidden;">
@@ -111,7 +127,7 @@ def internal_email_body(e: Event) -> str:
     preview_link = f"{BASE_URL}/offer-preview?token={e.token}"
     admin_link = f"{BASE_URL}/admin"
     msg = (e.message or "").strip()
-    msg_html = html.escape(msg).replace("\n", "<br>") if msg else "(nema)"
+    msg_html = _nl2br_escaped(msg) if msg else "(nema)"
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5;">
   <h2>Novi upit</h2>
@@ -147,7 +163,8 @@ def event_2d_email_body(e: Event) -> str:
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
   <h2>Podsjetnik — Vaš događaj je uskoro</h2>
-  <p>Podsjetnik: Događaj {html.escape(str(e.wedding_date))} u {html.escape(e.venue)} je za 2 dana.</p>
-  <p>Ovo je interna poruka za catering tim.</p>
+  <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
+  <p>Veselimo se Vašem događaju <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).</p>
+  <p>Za bilo kakva pitanja slobodno odgovorite na ovaj email.</p>
 </div>
 """
