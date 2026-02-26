@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.api.schemas import StatusUpdate
@@ -39,6 +39,8 @@ def admin_events(
     request: Request,
     status: str | None = None,
     q: str | None = None,
+    date_sort: str = "asc",
+    id_sort: str | None = None,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):
@@ -49,17 +51,26 @@ def admin_events(
     if status:
         query = query.filter(Event.status == status)
 
-    rows = query.order_by(Event.id.desc()).limit(500).all()
+    if q and q.strip():
+        qq = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Event.first_name.ilike(qq),
+                Event.last_name.ilike(qq),
+                Event.email.ilike(qq),
+            )
+        )
 
-    if q:
-        qq = q.lower()
-        rows = [
-            e
-            for e in rows
-            if (e.first_name and qq in e.first_name.lower())
-            or (e.last_name and qq in e.last_name.lower())
-            or (e.email and qq in e.email.lower())
-        ]
+    if id_sort == "asc":
+        query = query.order_by(Event.id.asc())
+    elif id_sort == "desc":
+        query = query.order_by(Event.id.desc())
+    elif date_sort == "desc":
+        query = query.order_by(Event.wedding_date.desc(), Event.id.desc())
+    else:
+        query = query.order_by(Event.wedding_date.asc(), Event.id.desc())
+
+    rows = query.limit(500).all()
 
     items = []
     for e in rows:

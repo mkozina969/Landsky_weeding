@@ -120,6 +120,19 @@
     <label for="q">Pretraga (ime/email)</label>
     <input id="q" placeholder="npr. ivo ili gmail.com" />
 
+    <label for="date-sort">Datum (A-Z)</label>
+    <select id="date-sort">
+      <option value="asc">A-Z (najraniji prvo)</option>
+      <option value="desc">Z-A (najkasniji prvo)</option>
+    </select>
+
+    <label for="id-sort">ID</label>
+    <select id="id-sort">
+      <option value="">Prema datumu</option>
+      <option value="asc">ID uzlazno</option>
+      <option value="desc">ID silazno</option>
+    </select>
+
     <button class="primary" id="refresh">Osvježi</button>
     <button class="bad" id="logout">Odjava</button>
 
@@ -153,6 +166,8 @@
   const tbody = document.getElementById('tbody');
   const statusEl = document.getElementById('status');
   const qEl = document.getElementById('q');
+  const dateSortEl = document.getElementById('date-sort');
+  const idSortEl = document.getElementById('id-sort');
   const msgEl = document.getElementById('msg');
 
   function escapeHtml(s){
@@ -250,9 +265,13 @@
     msgEl.textContent = 'Učitavanje...';
     const s = statusEl.value;
     const q = (qEl.value || '').trim();
+    const dateSort = dateSortEl.value;
+    const idSort = idSortEl.value;
     const url = new URL('/admin/api/events', location.origin);
     if(s) url.searchParams.set('status', s);
     if(q) url.searchParams.set('q', q);
+    if(dateSort) url.searchParams.set('date_sort', dateSort);
+    if(idSort) url.searchParams.set('id_sort', idSort);
 
     try{
       const data = await apiJson(url.pathname + url.search);
@@ -353,6 +372,8 @@ async function sendReminderNow(id){
 
   qEl.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') load(); });
   statusEl.addEventListener('change', load);
+  dateSortEl.addEventListener('change', load);
+  idSortEl.addEventListener('change', load);
 
   load();
 </script>
