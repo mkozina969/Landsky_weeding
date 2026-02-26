@@ -174,6 +174,32 @@
     .adminlink a{color:var(--accent); text-decoration:none}
     .adminlink a:hover{text-decoration:underline}
 
+    .social-link{
+      width:34px;
+      height:34px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+      color:#fff;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.35);
+      background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 8%, #fd5949 45%, #d6249f 60%, #285AEB 90%);
+      box-shadow: 0 8px 18px rgba(214,36,159,.28);
+      transition: transform .08s ease, filter .15s ease;
+    }
+    .social-link:hover{filter:brightness(1.08)}
+    .social-link:active{transform:translateY(1px)}
+    .social-link.facebook{
+      background:#1877F2;
+      box-shadow: 0 8px 18px rgba(24,119,242,.32);
+    }
+    .social-link svg{
+      width:16px;
+      height:16px;
+      display:block;
+    }
+
     .side{
       background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
       padding:18px;
@@ -323,6 +349,16 @@
               <span class="chip"><span class="dot"></span> Brzi odgovor</span>
               <span class="chip">📍 Zagreb i okolica</span>
               <span class="chip">🍸 Cocktail catering</span>
+              <a class="social-link" href="https://www.instagram.com/cateringlandsky/" target="_blank" rel="noopener noreferrer" aria-label="Instagram Landsky profila">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm0 1.8A3.95 3.95 0 0 0 3.8 7.75v8.5A3.95 3.95 0 0 0 7.75 20.2h8.5a3.95 3.95 0 0 0 3.95-3.95v-8.5a3.95 3.95 0 0 0-3.95-3.95h-8.5Zm8.83 1.44a1.08 1.08 0 1 1 0 2.16 1.08 1.08 0 0 1 0-2.16ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.8A3.2 3.2 0 1 0 15.2 12 3.2 3.2 0 0 0 12 8.8Z"/>
+                </svg>
+              </a>
+              <a class="social-link facebook" href="https://www.facebook.com/landsky30" target="_blank" rel="noopener noreferrer" aria-label="Facebook Landsky profila">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.2-1.6 1.6-1.6h1.7V4.3c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.2v2.4H8v3.2h2.4v8h3.1z"/>
+                </svg>
+              </a>
               <span class="adminlink">Admin: <a href="/admin">/admin</a></span>
             </div>
           </div>
