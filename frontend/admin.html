@@ -120,6 +120,12 @@
     <label for="q">Pretraga (ime/email)</label>
     <input id="q" placeholder="npr. ivo ili gmail.com" />
 
+    <label for="date-sort">Datum (A-Z)</label>
+    <select id="date-sort">
+      <option value="asc">A-Z (najraniji prvo)</option>
+      <option value="desc">Z-A (najkasniji prvo)</option>
+    </select>
+
     <button class="primary" id="refresh">Osvježi</button>
     <button class="bad" id="logout">Odjava</button>
 
@@ -153,6 +159,7 @@
   const tbody = document.getElementById('tbody');
   const statusEl = document.getElementById('status');
   const qEl = document.getElementById('q');
+  const dateSortEl = document.getElementById('date-sort');
   const msgEl = document.getElementById('msg');
 
   function escapeHtml(s){
@@ -250,9 +257,11 @@
     msgEl.textContent = 'Učitavanje...';
     const s = statusEl.value;
     const q = (qEl.value || '').trim();
+    const dateSort = dateSortEl.value;
     const url = new URL('/admin/api/events', location.origin);
     if(s) url.searchParams.set('status', s);
     if(q) url.searchParams.set('q', q);
+    if(dateSort) url.searchParams.set('date_sort', dateSort);
 
     try{
       const data = await apiJson(url.pathname + url.search);
@@ -353,6 +362,7 @@ async function sendReminderNow(id){
 
   qEl.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') load(); });
   statusEl.addEventListener('change', load);
+  dateSortEl.addEventListener('change', load);
 
   load();
 </script>
