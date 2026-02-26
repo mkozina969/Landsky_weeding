@@ -40,6 +40,7 @@ def admin_events(
     status: str | None = None,
     q: str | None = None,
     date_sort: str = "asc",
+    id_sort: str | None = None,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):
@@ -60,7 +61,11 @@ def admin_events(
             )
         )
 
-    if date_sort == "desc":
+    if id_sort == "asc":
+        query = query.order_by(Event.id.asc())
+    elif id_sort == "desc":
+        query = query.order_by(Event.id.desc())
+    elif date_sort == "desc":
         query = query.order_by(Event.wedding_date.desc(), Event.id.desc())
     else:
         query = query.order_by(Event.wedding_date.asc(), Event.id.desc())
