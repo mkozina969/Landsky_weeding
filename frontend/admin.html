@@ -249,7 +249,7 @@
 <td>
   <div class="actions">
 	    <button onclick="setStatus(${e.id}, 'accepted')">Accept</button>
-	    <button onclick="setStatus(${e.id}, 'declined')">Decline</button>
+	    <button onclick="declineEvent(${e.id})">Decline</button>
 	    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
 	    <button onclick="resendOffer(${e.id})">Resend</button>
 	    ${sendReminderBtn}
@@ -301,8 +301,13 @@
   }
 
   async function declineEvent(id){
-    if(!confirm(`Decline za ID ${id}?`)) return;
-    await apiJson(`/admin/api/events/${id}/decline`, { method:'POST' });
+    const text = prompt(`Za potvrdu upišite DECLINE (ID ${id})`);
+    if(text === null) return;
+    await apiJson(`/admin/api/events/${id}/decline`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({confirm_text: text})
+    });
     await load();
   }
 
