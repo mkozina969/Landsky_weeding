@@ -59,3 +59,21 @@ class EmailLog(Base):
     error = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class StatusChangeLog(Base):
+    __tablename__ = "status_change_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+
+    old_status = Column(String(20), nullable=True)
+    new_status = Column(String(20), nullable=True)
+    source = Column(String(50), nullable=False)
+    reason = Column(String(255), nullable=True)
+
+    actor_ip = Column(String(120), nullable=True)
+    actor_user_agent = Column(Text, nullable=True)
+    actor_auth = Column(String(32), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

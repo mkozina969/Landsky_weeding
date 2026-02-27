@@ -253,6 +253,7 @@
 	    <button onclick="resendOffer(${e.id})">Resend</button>
 	    ${sendReminderBtn}
         <button onclick="openLogs(${e.id})">Logs</button>
+        <button onclick="openStatusLogs(${e.id})">Status logs</button>
 	  </div>
           </td>
         </tr>
@@ -338,6 +339,41 @@ async function openLogs(id){
     w.document.close();
   }catch(err){
     alert('Greška (logs): ' + (err?.message || err));
+  }
+}
+
+
+async function openStatusLogs(id){
+  try{
+    const data = await apiJson(`/admin/api/events/${id}/status-logs`);
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('Popup blocked');
+      return;
+    }
+    const safe = JSON.stringify(data, null, 2)
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+
+    w.document.write(`
+      <!doctype html>
+      <html>
+      <head>
+        <title>Status logs</title>
+        <style>
+          body{font-family:system-ui;padding:20px;background:#0b1220;color:#e5e7eb}
+          pre{white-space:pre-wrap}
+        </style>
+      </head>
+      <body>
+        <h2>Status logs — event ${id}</h2>
+        <pre>${safe}</pre>
+      </body>
+      </html>
+    `);
+    w.document.close();
+  }catch(err){
+    alert('Greška (status logs): ' + (err?.message || err));
   }
 }
 
