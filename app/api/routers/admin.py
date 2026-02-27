@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
-from app.api.schemas import StatusUpdate
+from app.api.schemas import DeclineUpdate, StatusUpdate
 from app.core.config import CATERING_TEAM_EMAIL, TEST_MODE
 from app.core.logging import log_evt
 from app.core.security import require_admin, require_admin_request
@@ -148,7 +148,15 @@ def admin_set_status(
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Guard rails: accepted/declined must use dedicated explicit endpoints.
+    if payload.status in {"accepted", "declined"}:
+        raise HTTPException(status_code=400, detail="Use dedicated accept/decline actions")
+
     e.status = payload.status
+    if payload.status == "pending":
+        e.accepted = False
+        e.selected_package = None
     e.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
@@ -175,6 +183,7 @@ def admin_accept(
 @router.post("/admin/api/events/{event_id}/decline")
 def admin_decline(
     event_id: int,
+    payload: DeclineUpdate,
     request: Request,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -183,8 +192,16 @@ def admin_decline(
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+
+    expected = f"DECLINE-{event_id}"
+    if payload.confirm_text.strip().upper() != expected:
+        raise HTTPException(status_code=400, detail=f"Decline confirmation must be {expected}")
+    if payload.event_token.strip() != (e.token or ""):
+        raise HTTPException(status_code=400, detail="Invalid event token")
+
     e.accepted = False
     e.status = "declined"
+    e.selected_package = None
     e.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
