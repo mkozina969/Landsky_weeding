@@ -2,7 +2,7 @@ import html
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from app.db.models import Event
 from app.db.session import get_db
 from app.email.templates import PACKAGE_LABELS, render_offer_html
 from app.services.offers import send_offer_flow
+from app.services.status_audit import log_status_change
 
 router = APIRouter()
 
@@ -67,6 +68,7 @@ def offer_preview(token: str = Query(...), db: Session = Depends(get_db)):
 
 @router.get("/accept", response_class=HTMLResponse)
 def accept_get(
+    request: Request,
     token: str = Query(...),
     package: str | None = Query(None),
     db: Session = Depends(get_db),
@@ -89,9 +91,11 @@ def accept_get(
         if p not in PACKAGE_LABELS:
             return HTMLResponse("<h3>Neispravan paket.</h3>", status_code=400)
 
+        old_status = e.status
         e.accepted = True
         e.status = "accepted"
         e.selected_package = p
+        log_status_change(db, e, old_status, e.status, source="guest_accept_link", request=request)
         e.updated_at = datetime.utcnow()
         db.commit()
 
@@ -203,29 +207,23 @@ def accept_get(
 @router.get("/decline", response_class=HTMLResponse)
 def decline_get(
     token: str = Query(...),
-    confirm: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     e = db.query(Event).filter_by(token=token).first()
     if not e:
         return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
 
-    if e.status == "declined":
-        return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
-
-    if confirm == "1":
-        e.accepted = False
-        e.status = "declined"
-        e.updated_at = datetime.utcnow()
-        db.commit()
-        return HTMLResponse("<h2>Ponuda odbijena.</h2><p>Hvala na povratnoj informaciji.</p>")
-
     return HTMLResponse(
-        f"""
+        """
         <div style='font-family:Arial,sans-serif;max-width:720px;margin:30px auto;'>
           <h2>Odbijanje ponude</h2>
-          <p>Jeste li sigurni da želite odbiti ponudu?</p>
-          <a href="{BASE_URL}/decline?token={e.token}&confirm=1">Da, odbijam</a>
+          <p>
+            Radi sigurnosti, odbijanje ponude više nije moguće putem email linka.
+          </p>
+          <p>
+            Molimo odgovorite na email i napišite da želite odbiti ponudu,
+            a naš tim će ručno ažurirati status.
+          </p>
         </div>
         """
     )
