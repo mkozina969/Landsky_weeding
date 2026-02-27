@@ -209,20 +209,17 @@ def decline_get(
     if not e:
         return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
 
-    if e.status == "declined":
-        return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
-
     return HTMLResponse(
-        f"""
+        """
         <div style='font-family:Arial,sans-serif;max-width:720px;margin:30px auto;'>
           <h2>Odbijanje ponude</h2>
-          <p>Jeste li sigurni da želite odbiti ponudu?</p>
-          <form method="post" action="{BASE_URL}/decline/confirm" style="margin-top:14px;">
-            <input type="hidden" name="token" value="{e.token}">
-            <button type="submit" style="background:#b71c1c;color:#fff;border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer;">
-              Da, odbijam
-            </button>
-          </form>
+          <p>
+            Radi sigurnosti, odbijanje ponude više nije moguće putem email linka.
+          </p>
+          <p>
+            Molimo odgovorite na email i napišite da želite odbiti ponudu,
+            a naš tim će ručno ažurirati status.
+          </p>
         </div>
         """
     )
