@@ -17,3 +17,8 @@ class RegistrationRequest(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str
+
+
+class DeclineUpdate(BaseModel):
+    confirm_text: str
+    event_token: str

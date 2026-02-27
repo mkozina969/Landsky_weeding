@@ -6,16 +6,17 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
-from app.api.schemas import StatusUpdate
-from app.core.config import CATERING_TEAM_EMAIL, TEST_MODE
+from app.api.schemas import DeclineUpdate, StatusUpdate
+from app.core.config import ALLOW_ADMIN_DECLINE, CATERING_TEAM_EMAIL, TEST_MODE
 from app.core.logging import log_evt
 from app.core.security import require_admin, require_admin_request
-from app.db.models import EmailLog, Event
+from app.db.models import EmailLog, Event, StatusChangeLog
 from app.db.session import engine, get_db
 from app.email.sender import send_email_logged
 from app.email.templates import render_offer_html
 from app.email.templates import reminder_email_body  # for manual send
 from app.services.offers import send_offer_flow
+from app.services.status_audit import log_status_change
 
 router = APIRouter()
 
@@ -136,6 +137,39 @@ def admin_email_logs(
     }
 
 
+@router.get("/admin/api/events/{event_id}/status-logs")
+def admin_status_logs(
+    event_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    require_admin_request(request)
+    rows = (
+        db.query(StatusChangeLog)
+        .filter(StatusChangeLog.event_id == event_id)
+        .order_by(StatusChangeLog.id.desc())
+        .limit(200)
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "old_status": r.old_status,
+                "new_status": r.new_status,
+                "source": r.source,
+                "reason": r.reason,
+                "actor_ip": r.actor_ip,
+                "actor_user_agent": r.actor_user_agent,
+                "actor_auth": r.actor_auth,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+    }
+
+
 @router.post("/admin/api/events/{event_id}/status")
 def admin_set_status(
     event_id: int,
@@ -148,7 +182,17 @@ def admin_set_status(
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Guard rails: accepted/declined must use dedicated explicit endpoints.
+    if payload.status in {"accepted", "declined"}:
+        raise HTTPException(status_code=400, detail="Use dedicated accept/decline actions")
+
+    old_status = e.status
     e.status = payload.status
+    if payload.status == "pending":
+        e.accepted = False
+        e.selected_package = None
+    log_status_change(db, e, old_status, e.status, source="admin_status_api", request=request)
     e.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
@@ -165,8 +209,10 @@ def admin_accept(
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+    old_status = e.status
     e.accepted = True
     e.status = "accepted"
+    log_status_change(db, e, old_status, e.status, source="admin_accept_api", request=request)
     e.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
@@ -175,16 +221,30 @@ def admin_accept(
 @router.post("/admin/api/events/{event_id}/decline")
 def admin_decline(
     event_id: int,
+    payload: DeclineUpdate,
     request: Request,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):
     require_admin_request(request)
+    if not ALLOW_ADMIN_DECLINE:
+        raise HTTPException(status_code=403, detail="Decline action is disabled")
+
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+
+    expected = f"DECLINE-{event_id}"
+    if payload.confirm_text.strip().upper() != expected:
+        raise HTTPException(status_code=400, detail=f"Decline confirmation must be {expected}")
+    if payload.event_token.strip() != (e.token or ""):
+        raise HTTPException(status_code=400, detail="Invalid event token")
+
+    old_status = e.status
     e.accepted = False
     e.status = "declined"
+    e.selected_package = None
+    log_status_change(db, e, old_status, e.status, source="admin_decline_api", request=request)
     e.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
