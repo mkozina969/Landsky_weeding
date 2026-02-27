@@ -7,7 +7,7 @@ from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.api.schemas import DeclineUpdate, StatusUpdate
-from app.core.config import CATERING_TEAM_EMAIL, TEST_MODE
+from app.core.config import ALLOW_ADMIN_DECLINE, CATERING_TEAM_EMAIL, TEST_MODE
 from app.core.logging import log_evt
 from app.core.security import require_admin, require_admin_request
 from app.db.models import EmailLog, Event
@@ -189,6 +189,9 @@ def admin_decline(
     _: None = Depends(require_admin),
 ):
     require_admin_request(request)
+    if not ALLOW_ADMIN_DECLINE:
+        raise HTTPException(status_code=403, detail="Decline action is disabled")
+
     e = db.query(Event).filter_by(id=event_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
