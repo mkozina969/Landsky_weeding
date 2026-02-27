@@ -2,7 +2,7 @@ import html
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -223,3 +223,22 @@ def decline_get(
         </div>
         """
     )
+
+
+@router.post("/decline/confirm", response_class=HTMLResponse)
+def decline_confirm_post(
+    token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    e = db.query(Event).filter_by(token=token).first()
+    if not e:
+        return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
+
+    if e.status == "declined":
+        return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
+
+    e.accepted = False
+    e.status = "declined"
+    e.updated_at = datetime.utcnow()
+    db.commit()
+    return HTMLResponse("<h2>Ponuda odbijena.</h2><p>Hvala na povratnoj informaciji.</p>")
