@@ -249,7 +249,7 @@
 <td>
   <div class="actions">
 	    <button onclick="setStatus(${e.id}, 'accepted')">Accept</button>
-	    <button onclick="declineEvent(${e.id})">Decline</button>
+	    <button onclick="declineEvent(${e.id}, '${escapeHtml(token)}')">Decline</button>
 	    <button onclick="setStatus(${e.id}, 'pending')">Pending</button>
 	    <button onclick="resendOffer(${e.id})">Resend</button>
 	    ${sendReminderBtn}
@@ -300,13 +300,14 @@
     await load();
   }
 
-  async function declineEvent(id){
-    const text = prompt(`Za potvrdu upišite DECLINE (ID ${id})`);
+  async function declineEvent(id, token){
+    const expected = `DECLINE-${id}`;
+    const text = prompt(`Za potvrdu upišite ${expected}`);
     if(text === null) return;
     await apiJson(`/admin/api/events/${id}/decline`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({confirm_text: text})
+      body: JSON.stringify({confirm_text: text, event_token: token})
     });
     await load();
   }

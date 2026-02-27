@@ -21,3 +21,4 @@ class StatusUpdate(BaseModel):
 
 class DeclineUpdate(BaseModel):
     confirm_text: str
+    event_token: str

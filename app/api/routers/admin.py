@@ -193,8 +193,11 @@ def admin_decline(
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
 
-    if payload.confirm_text.strip().upper() != "DECLINE":
-        raise HTTPException(status_code=400, detail="Decline confirmation required")
+    expected = f"DECLINE-{event_id}"
+    if payload.confirm_text.strip().upper() != expected:
+        raise HTTPException(status_code=400, detail=f"Decline confirmation must be {expected}")
+    if payload.event_token.strip() != (e.token or ""):
+        raise HTTPException(status_code=400, detail="Invalid event token")
 
     e.accepted = False
     e.status = "declined"
