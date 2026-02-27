@@ -26,7 +26,11 @@ def render_offer_html(e: Event) -> str:
     bar_img = f"{BASE_URL}/frontend/bar.jpeg"
     cigare_img = f"{BASE_URL}/frontend/cigare.png"
     accept_link = f"{BASE_URL}/accept?token={e.token}"
-    decline_link = f"{BASE_URL}/decline?token={e.token}"
+    decline_link = (
+        "mailto:catering@landskybar.com"
+        f"?subject=Odbijanje%20ponude%20-%20{e.token}"
+        "&body=Po%C5%A1tovani%2C%20molim%20ozna%C4%8Dite%20ponudu%20kao%20odbijenu."
+    )
 
     msg = (e.message or "").strip()
     msg_html = _nl2br_escaped(msg) if msg else "(nema)"
@@ -131,7 +135,7 @@ def render_offer_html(e: Event) -> str:
             <td style="width:10px;"></td>
             <td>
               <a href="{decline_link}" style="background:#b71c1c; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700; display:inline-block;">
-                ❌ Odbijam
+                ❌ Odbijam (pošalji email)
               </a>
             </td>
           </tr>
@@ -184,14 +188,18 @@ def internal_email_body(e: Event) -> str:
 
 def reminder_email_body(e: Event) -> str:
     accept_link = f"{BASE_URL}/accept?token={e.token}"
-    decline_link = f"{BASE_URL}/decline?token={e.token}"
+    decline_link = (
+        "mailto:catering@landskybar.com"
+        f"?subject=Odbijanje%20ponude%20-%20{e.token}"
+        "&body=Po%C5%A1tovani%2C%20molim%20ozna%C4%8Dite%20ponudu%20kao%20odbijenu."
+    )
     return f"""
 <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto;">
   <h2>Podsjetnik — Landsky Cocktail Catering ponuda</h2>
   <p>Poštovani {html.escape(e.first_name)} {html.escape(e.last_name)},</p>
   <p>Samo kratki podsjetnik vezano za našu ponudu za datum <b>{html.escape(str(e.wedding_date))}</b> ({html.escape(e.venue)}).</p>
   <p>✅ <a href="{accept_link}">Prihvaćam ponudu</a><br>
-     ❌ <a href="{decline_link}">Odbijam ponudu</a></p>
+     ❌ <a href="{decline_link}">Odbijam ponudu (email)</a></p>
 </div>
 """
 

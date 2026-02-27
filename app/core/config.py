@@ -36,3 +36,5 @@ REMINDER_DAY_1 = int(os.getenv("REMINDER_DAY_1", "3"))
 REMINDER_DAY_2 = int(os.getenv("REMINDER_DAY_2", "7"))
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+ALLOW_ADMIN_DECLINE = os.getenv("ALLOW_ADMIN_DECLINE", "0").lower() in ("1", "true", "yes", "on")
