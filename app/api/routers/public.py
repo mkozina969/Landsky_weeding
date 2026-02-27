@@ -2,8 +2,9 @@ import html
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.schemas import RegistrationRequest
@@ -13,6 +14,7 @@ from app.db.models import Event
 from app.db.session import get_db
 from app.email.templates import PACKAGE_LABELS, render_offer_html
 from app.services.offers import send_offer_flow
+from app.services.status_audit import log_status_change
 
 router = APIRouter()
 
@@ -68,7 +70,6 @@ def offer_preview(token: str = Query(...), db: Session = Depends(get_db)):
 @router.get("/accept", response_class=HTMLResponse)
 def accept_get(
     token: str = Query(...),
-    package: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     e = db.query(Event).filter_by(token=token).first()
@@ -84,23 +85,7 @@ def accept_get(
     if e.status == "declined":
         return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
 
-    if package:
-        p = package.strip().lower()
-        if p not in PACKAGE_LABELS:
-            return HTMLResponse("<h3>Neispravan paket.</h3>", status_code=400)
-
-        e.accepted = True
-        e.status = "accepted"
-        e.selected_package = p
-        e.updated_at = datetime.utcnow()
-        db.commit()
-
-        chosen = PACKAGE_LABELS.get(p, p)
-        return HTMLResponse(
-            f"<h2>Hvala! Ponuda je prihvaćena.</h2><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>"
-        )
-
-    # Show selection UI (RICH / PREMIUM)
+    # Show selection UI (selection is confirmed via POST form submit)
     logo_url = f"{BASE_URL}/frontend/logo.png"
 
     return HTMLResponse(
@@ -149,10 +134,13 @@ def accept_get(
             Osnovna ponuda — idealno za kratka događanja i većim brojem uzvanika.
           </div>
           <div style="margin-top:10px;">
-            <a href="{BASE_URL}/accept?token={e.token}&package=classic"
-               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
-              Odaberi Classic
-            </a>
+            <form method="post" action="{BASE_URL}/accept/confirm">
+              <input type="hidden" name="token" value="{e.token}">
+              <input type="hidden" name="package" value="classic">
+              <button type="submit" style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;border:0;cursor:pointer;">
+                Odaberi Classic
+              </button>
+            </form>
           </div>
         </div>
 
@@ -163,10 +151,13 @@ def accept_get(
             Proširena ponuda — elegantnija i ekskluzivnija događanja.
           </div>
           <div style="margin-top:10px;">
-            <a href="{BASE_URL}/accept?token={e.token}&package=premium"
-               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
-              Odaberi Premium
-            </a>
+            <form method="post" action="{BASE_URL}/accept/confirm">
+              <input type="hidden" name="token" value="{e.token}">
+              <input type="hidden" name="package" value="premium">
+              <button type="submit" style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;border:0;cursor:pointer;">
+                Odaberi Premium
+              </button>
+            </form>
           </div>
         </div>
 
@@ -177,10 +168,13 @@ def accept_get(
             Premium experience — potpuni wow efekt.
           </div>
           <div style="margin-top:10px;">
-            <a href="{BASE_URL}/accept?token={e.token}&package=signature"
-               style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;">
-              Odaberi Signature
-            </a>
+            <form method="post" action="{BASE_URL}/accept/confirm">
+              <input type="hidden" name="token" value="{e.token}">
+              <input type="hidden" name="package" value="signature">
+              <button type="submit" style="background:#1b5e20;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;display:inline-block;border:0;cursor:pointer;">
+                Odaberi Signature
+              </button>
+            </form>
           </div>
         </div>
 
@@ -200,32 +194,66 @@ def accept_get(
     )
 
 
-@router.get("/decline", response_class=HTMLResponse)
-def decline_get(
-    token: str = Query(...),
-    confirm: str | None = Query(None),
+@router.post("/accept/confirm", response_class=HTMLResponse)
+def accept_confirm_post(
+    request: Request,
+    token: str = Form(...),
+    package: str = Form(...),
     db: Session = Depends(get_db),
 ):
     e = db.query(Event).filter_by(token=token).first()
     if not e:
         return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
 
-    if e.status == "declined":
-        return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
+    p = package.strip().lower()
+    if p not in PACKAGE_LABELS:
+        return HTMLResponse("<h3>Neispravan paket.</h3>", status_code=400)
 
-    if confirm == "1":
-        e.accepted = False
-        e.status = "declined"
-        e.updated_at = datetime.utcnow()
+    now = datetime.utcnow()
+    res = db.execute(
+        text(
+            "UPDATE events SET accepted=:accepted, status='accepted', selected_package=:p, updated_at=:now "
+            "WHERE id=:id AND status='pending'"
+        ),
+        {"p": p, "now": now, "id": e.id, "accepted": True},
+    )
+    db.commit()
+
+    if res.rowcount == 1:
+        db.refresh(e)
+        log_status_change(db, e, "pending", "accepted", source="guest_accept_post", request=request)
         db.commit()
-        return HTMLResponse("<h2>Ponuda odbijena.</h2><p>Hvala na povratnoj informaciji.</p>")
+    else:
+        db.refresh(e)
+        if e.status == "declined":
+            return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
+
+    chosen = PACKAGE_LABELS.get((e.selected_package or p), e.selected_package or p)
+    return HTMLResponse(
+        f"<h2>Hvala! Ponuda je prihvaćena.</h2><p>Odabrani paket: <b>{html.escape(chosen)}</b></p>"
+    )
+
+
+@router.get("/decline", response_class=HTMLResponse)
+def decline_get(
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    e = db.query(Event).filter_by(token=token).first()
+    if not e:
+        return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
 
     return HTMLResponse(
-        f"""
+        """
         <div style='font-family:Arial,sans-serif;max-width:720px;margin:30px auto;'>
           <h2>Odbijanje ponude</h2>
-          <p>Jeste li sigurni da želite odbiti ponudu?</p>
-          <a href="{BASE_URL}/decline?token={e.token}&confirm=1">Da, odbijam</a>
+          <p>
+            Radi sigurnosti, odbijanje ponude više nije moguće putem email linka.
+          </p>
+          <p>
+            Molimo odgovorite na email i napišite da želite odbiti ponudu,
+            a naš tim će ručno ažurirati status.
+          </p>
         </div>
         """
     )
