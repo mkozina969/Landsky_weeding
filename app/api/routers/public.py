@@ -2,7 +2,7 @@ import html
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -203,7 +203,6 @@ def accept_get(
 @router.get("/decline", response_class=HTMLResponse)
 def decline_get(
     token: str = Query(...),
-    confirm: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     e = db.query(Event).filter_by(token=token).first()
@@ -213,19 +212,36 @@ def decline_get(
     if e.status == "declined":
         return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
 
-    if confirm == "1":
-        e.accepted = False
-        e.status = "declined"
-        e.updated_at = datetime.utcnow()
-        db.commit()
-        return HTMLResponse("<h2>Ponuda odbijena.</h2><p>Hvala na povratnoj informaciji.</p>")
-
     return HTMLResponse(
         f"""
         <div style='font-family:Arial,sans-serif;max-width:720px;margin:30px auto;'>
           <h2>Odbijanje ponude</h2>
           <p>Jeste li sigurni da želite odbiti ponudu?</p>
-          <a href="{BASE_URL}/decline?token={e.token}&confirm=1">Da, odbijam</a>
+          <form method="post" action="{BASE_URL}/decline/confirm" style="margin-top:14px;">
+            <input type="hidden" name="token" value="{e.token}">
+            <button type="submit" style="background:#b71c1c;color:#fff;border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer;">
+              Da, odbijam
+            </button>
+          </form>
         </div>
         """
     )
+
+
+@router.post("/decline/confirm", response_class=HTMLResponse)
+def decline_confirm_post(
+    token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    e = db.query(Event).filter_by(token=token).first()
+    if not e:
+        return HTMLResponse("<h3>Neispravan token.</h3>", status_code=404)
+
+    if e.status == "declined":
+        return HTMLResponse("<h3>Ponuda je već odbijena.</h3>")
+
+    e.accepted = False
+    e.status = "declined"
+    e.updated_at = datetime.utcnow()
+    db.commit()
+    return HTMLResponse("<h2>Ponuda odbijena.</h2><p>Hvala na povratnoj informaciji.</p>")
