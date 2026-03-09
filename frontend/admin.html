@@ -134,6 +134,7 @@
     </select>
 
     <button class="primary" id="refresh">Osvježi</button>
+    <button id="export-excel">Export Excel (.xlsx)</button>
     <button class="bad" id="logout">Odjava</button>
 
     <span id="msg" class="muted"></span>
@@ -205,6 +206,21 @@
     }
   }
 
+
+
+  function buildEventsUrl(pathname = '/admin/api/events') {
+    const s = statusEl.value;
+    const q = (qEl.value || '').trim();
+    const dateSort = dateSortEl.value;
+    const idSort = idSortEl.value;
+    const url = new URL(pathname, location.origin);
+    if(s) url.searchParams.set('status', s);
+    if(q) url.searchParams.set('q', q);
+    if(dateSort) url.searchParams.set('date_sort', dateSort);
+    if(idSort) url.searchParams.set('id_sort', idSort);
+    return url;
+  }
+
   function render(items){
     if(!items.length){
       tbody.innerHTML = `<tr><td colspan="13" class="muted" style="padding:18px;">Nema rezultata.</td></tr>`;
@@ -263,15 +279,7 @@
 
   async function load(){
     msgEl.textContent = 'Učitavanje...';
-    const s = statusEl.value;
-    const q = (qEl.value || '').trim();
-    const dateSort = dateSortEl.value;
-    const idSort = idSortEl.value;
-    const url = new URL('/admin/api/events', location.origin);
-    if(s) url.searchParams.set('status', s);
-    if(q) url.searchParams.set('q', q);
-    if(dateSort) url.searchParams.set('date_sort', dateSort);
-    if(idSort) url.searchParams.set('id_sort', idSort);
+    const url = buildEventsUrl('/admin/api/events');
 
     try{
       const data = await apiJson(url.pathname + url.search);
@@ -392,7 +400,17 @@ async function sendReminderNow(id){
   window.openLogs = openLogs;
   window.openStatusLogs = openStatusLogs;
 
+  async function exportEvents(){
+    try{
+      const url = buildEventsUrl('/admin/api/events/export');
+      window.location.href = url.pathname + url.search;
+    }catch(err){
+      alert('Greška (export): ' + (err?.message || err));
+    }
+  }
+
   document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('export-excel').addEventListener('click', exportEvents);
   document.getElementById('logout').addEventListener('click', async () => {
     try{ await apiNoJson('/admin/logout', {method:'POST'}); }catch(e){}
     location.reload();
