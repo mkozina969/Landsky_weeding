@@ -134,7 +134,7 @@
     </select>
 
     <button class="primary" id="refresh">Osvježi</button>
-    <button id="export-csv">Export Excel (CSV)</button>
+    <button id="export-excel">Export Excel (.xlsx)</button>
     <button class="bad" id="logout">Odjava</button>
 
     <span id="msg" class="muted"></span>
@@ -410,7 +410,7 @@ async function sendReminderNow(id){
   }
 
   document.getElementById('refresh').addEventListener('click', load);
-  document.getElementById('export-csv').addEventListener('click', exportEvents);
+  document.getElementById('export-excel').addEventListener('click', exportEvents);
   document.getElementById('logout').addEventListener('click', async () => {
     try{ await apiNoJson('/admin/logout', {method:'POST'}); }catch(e){}
     location.reload();
