@@ -7,7 +7,7 @@ from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from sqlalchemy import or_, text
+from sqlalchemy import MetaData, Table, literal, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.schemas import DeclineUpdate, StatusUpdate
@@ -111,59 +111,88 @@ def _build_xlsx_bytes(fields: list[str], rows: list[dict]) -> bytes:
 
     return output.getvalue()
 
-def _build_events_query(db: Session, status: str | None = None, q: str | None = None):
-    query = db.query(Event)
+def _event_datetime_to_iso(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
-    if status:
-        query = query.filter(Event.status == status)
+
+def _serialize_event(e):
+    get = e.get if isinstance(e, dict) else lambda k: getattr(e, k, None)
+    wedding_date = get("wedding_date")
+    return {
+        "id": get("id"),
+        "token": get("token"),
+        "first_name": get("first_name"),
+        "last_name": get("last_name"),
+        "wedding_date": str(wedding_date) if wedding_date else None,
+        "venue": get("venue"),
+        "guest_count": get("guest_count"),
+        "email": get("email"),
+        "phone": get("phone"),
+        "message": get("message"),
+        "status": get("status"),
+        "accepted": bool(get("accepted")),
+        "selected_package": get("selected_package"),
+        "created_at": _event_datetime_to_iso(get("created_at")),
+        "updated_at": _event_datetime_to_iso(get("updated_at")),
+        "last_email_sent_at": _event_datetime_to_iso(get("last_email_sent_at")),
+        "reminder_count": get("reminder_count") or 0,
+        "offer_sent_at": _event_datetime_to_iso(get("offer_sent_at")),
+        "reminder_3d_sent_at": _event_datetime_to_iso(get("reminder_3d_sent_at")),
+        "reminder_7d_sent_at": _event_datetime_to_iso(get("reminder_7d_sent_at")),
+        "event_2d_sent_at": _event_datetime_to_iso(get("event_2d_sent_at")),
+    }
+
+
+def _query_events_rows(
+    db: Session,
+    status: str | None = None,
+    q: str | None = None,
+    date_sort: str = "asc",
+    id_sort: str | None = None,
+    limit: int = 500,
+):
+    metadata = MetaData()
+    events = Table("events", metadata, autoload_with=db.bind)
+
+    selected_fields = [
+        "id", "token", "first_name", "last_name", "wedding_date", "venue", "guest_count",
+        "email", "phone", "message", "status", "accepted", "selected_package", "created_at",
+        "updated_at", "last_email_sent_at", "reminder_count", "offer_sent_at", "reminder_3d_sent_at",
+        "reminder_7d_sent_at", "event_2d_sent_at",
+    ]
+
+    def col_or_null(name: str):
+        return events.c[name].label(name) if name in events.c else literal(None).label(name)
+
+    stmt = select(*[col_or_null(name) for name in selected_fields]).select_from(events)
+
+    if status and "status" in events.c:
+        stmt = stmt.where(events.c.status == status)
 
     if q and q.strip():
         qq = f"%{q.strip()}%"
-        query = query.filter(
-            or_(
-                Event.first_name.ilike(qq),
-                Event.last_name.ilike(qq),
-                Event.email.ilike(qq),
-            )
-        )
+        terms = []
+        for name in ("first_name", "last_name", "email"):
+            if name in events.c:
+                terms.append(events.c[name].ilike(qq))
+        if terms:
+            stmt = stmt.where(or_(*terms))
 
-    return query
+    if id_sort == "asc" and "id" in events.c:
+        stmt = stmt.order_by(events.c.id.asc())
+    elif id_sort == "desc" and "id" in events.c:
+        stmt = stmt.order_by(events.c.id.desc())
+    elif date_sort == "desc" and "wedding_date" in events.c and "id" in events.c:
+        stmt = stmt.order_by(events.c.wedding_date.desc(), events.c.id.desc())
+    elif "wedding_date" in events.c and "id" in events.c:
+        stmt = stmt.order_by(events.c.wedding_date.asc(), events.c.id.desc())
 
-
-def _apply_events_sort(query, date_sort: str = "asc", id_sort: str | None = None):
-    if id_sort == "asc":
-        return query.order_by(Event.id.asc())
-    if id_sort == "desc":
-        return query.order_by(Event.id.desc())
-    if date_sort == "desc":
-        return query.order_by(Event.wedding_date.desc(), Event.id.desc())
-    return query.order_by(Event.wedding_date.asc(), Event.id.desc())
-
-
-def _serialize_event(e: Event):
-    return {
-        "id": e.id,
-        "token": e.token,
-        "first_name": e.first_name,
-        "last_name": e.last_name,
-        "wedding_date": str(e.wedding_date),
-        "venue": e.venue,
-        "guest_count": e.guest_count,
-        "email": e.email,
-        "phone": e.phone,
-        "message": e.message,
-        "status": e.status,
-        "accepted": bool(e.accepted),
-        "selected_package": e.selected_package,
-        "created_at": e.created_at.isoformat() if e.created_at else None,
-        "updated_at": e.updated_at.isoformat() if e.updated_at else None,
-        "last_email_sent_at": e.last_email_sent_at.isoformat() if e.last_email_sent_at else None,
-        "reminder_count": e.reminder_count or 0,
-        "offer_sent_at": e.offer_sent_at.isoformat() if e.offer_sent_at else None,
-        "reminder_3d_sent_at": e.reminder_3d_sent_at.isoformat() if e.reminder_3d_sent_at else None,
-        "reminder_7d_sent_at": e.reminder_7d_sent_at.isoformat() if e.reminder_7d_sent_at else None,
-        "event_2d_sent_at": e.event_2d_sent_at.isoformat() if e.event_2d_sent_at else None,
-    }
+    rows = db.execute(stmt.limit(limit)).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
@@ -192,42 +221,8 @@ def admin_events(
 ):
     require_admin_request(request)
 
-    query = _build_events_query(db, status=status, q=q)
-    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
-
-    query = _build_events_query(db, status=status, q=q)
-    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
-    rows = query.limit(500).all()
-
-    fields = [
-        "id",
-        "status",
-        "first_name",
-        "last_name",
-        "wedding_date",
-        "venue",
-        "guest_count",
-        "email",
-        "phone",
-        "selected_package",
-        "message",
-        "accepted",
-        "created_at",
-        "updated_at",
-        "last_email_sent_at",
-        "reminder_count",
-        "offer_sent_at",
-        "reminder_3d_sent_at",
-        "reminder_7d_sent_at",
-        "event_2d_sent_at",
-        "token",
-    ]
-
-    output = StringIO()
-    writer = DictWriter(output, fieldnames=fields)
-    writer.writeheader()
-    for e in rows:
-        items.append(_serialize_event(e))
+    rows = _query_events_rows(db, status=status, q=q, date_sort=date_sort, id_sort=id_sort, limit=500)
+    return {"items": [_serialize_event(e) for e in rows]}
 
 
 @router.get("/admin/api/events/export")
@@ -242,63 +237,7 @@ def admin_events_export(
 ):
     require_admin_request(request)
 
-    query = _build_events_query(db, status=status, q=q)
-    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
-    rows = query.limit(500).all()
-
-    fields = [
-        "id",
-        "status",
-        "first_name",
-        "last_name",
-        "wedding_date",
-        "venue",
-        "guest_count",
-        "email",
-        "phone",
-        "selected_package",
-        "message",
-        "accepted",
-        "created_at",
-        "updated_at",
-        "last_email_sent_at",
-        "reminder_count",
-        "offer_sent_at",
-        "reminder_3d_sent_at",
-        "reminder_7d_sent_at",
-        "event_2d_sent_at",
-        "token",
-    ]
-
-    serialized_rows = [_serialize_event(e) for e in rows]
-    xlsx_content = _build_xlsx_bytes(fields, serialized_rows)
-
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    headers = {
-        "Content-Disposition": f'attachment; filename="events_export_{timestamp}.xlsx"'
-    }
-    return Response(
-        content=xlsx_content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers=headers,
-    )
-
-
-@router.get("/admin/api/events/export")
-def admin_events_export(
-    request: Request,
-    status: str | None = None,
-    q: str | None = None,
-    date_sort: str = "asc",
-    id_sort: str | None = None,
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
-):
-    require_admin_request(request)
-
-    query = _build_events_query(db, status=status, q=q)
-    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
-    rows = query.limit(500).all()
+    rows = _query_events_rows(db, status=status, q=q, date_sort=date_sort, id_sort=id_sort, limit=500)
 
     fields = [
         "id",
