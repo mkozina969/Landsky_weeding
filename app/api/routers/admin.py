@@ -1,4 +1,5 @@
 import os
+from csv import DictWriter
 from datetime import datetime, timedelta
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -194,13 +195,59 @@ def admin_events(
     query = _build_events_query(db, status=status, q=q)
     query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
 
+
+@router.get("/admin/api/events/export")
+def admin_events_export(
+    request: Request,
+    status: str | None = None,
+    q: str | None = None,
+    date_sort: str = "asc",
+    id_sort: str | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    require_admin_request(request)
+
+    query = _build_events_query(db, status=status, q=q)
+    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
     rows = query.limit(500).all()
 
-    items = []
+    fields = [
+        "id",
+        "status",
+        "first_name",
+        "last_name",
+        "wedding_date",
+        "venue",
+        "guest_count",
+        "email",
+        "phone",
+        "selected_package",
+        "message",
+        "accepted",
+        "created_at",
+        "updated_at",
+        "last_email_sent_at",
+        "reminder_count",
+        "offer_sent_at",
+        "reminder_3d_sent_at",
+        "reminder_7d_sent_at",
+        "event_2d_sent_at",
+        "token",
+    ]
+
+    output = StringIO()
+    writer = DictWriter(output, fieldnames=fields)
+    writer.writeheader()
     for e in rows:
         items.append(_serialize_event(e))
 
-    return {"items": items}
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    headers = {
+        "Content-Disposition": f'attachment; filename="events_export_{timestamp}.csv"'
+    }
+    csv_content = "\ufeff" + output.getvalue()
+    return Response(content=csv_content, media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @router.get("/admin/api/events/export")
