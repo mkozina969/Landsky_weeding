@@ -283,7 +283,10 @@
 
     try{
       const data = await apiJson(url.pathname + url.search);
-      const items = data.items || [];
+      const items = Array.isArray(data?.items) ? data.items : [];
+      if (!Array.isArray(data?.items)) {
+        console.warn('Unexpected /admin/api/events payload:', data);
+      }
       render(items);
       msgEl.textContent = `Učitano: ${items.length}`;
     }catch(err){

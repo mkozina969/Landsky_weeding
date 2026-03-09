@@ -195,6 +195,40 @@ def admin_events(
     query = _build_events_query(db, status=status, q=q)
     query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
 
+    query = _build_events_query(db, status=status, q=q)
+    query = _apply_events_sort(query, date_sort=date_sort, id_sort=id_sort)
+    rows = query.limit(500).all()
+
+    fields = [
+        "id",
+        "status",
+        "first_name",
+        "last_name",
+        "wedding_date",
+        "venue",
+        "guest_count",
+        "email",
+        "phone",
+        "selected_package",
+        "message",
+        "accepted",
+        "created_at",
+        "updated_at",
+        "last_email_sent_at",
+        "reminder_count",
+        "offer_sent_at",
+        "reminder_3d_sent_at",
+        "reminder_7d_sent_at",
+        "event_2d_sent_at",
+        "token",
+    ]
+
+    output = StringIO()
+    writer = DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for e in rows:
+        items.append(_serialize_event(e))
+
 
 @router.get("/admin/api/events/export")
 def admin_events_export(
@@ -236,18 +270,18 @@ def admin_events_export(
         "token",
     ]
 
-    output = StringIO()
-    writer = DictWriter(output, fieldnames=fields)
-    writer.writeheader()
-    for e in rows:
-        items.append(_serialize_event(e))
+    serialized_rows = [_serialize_event(e) for e in rows]
+    xlsx_content = _build_xlsx_bytes(fields, serialized_rows)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     headers = {
-        "Content-Disposition": f'attachment; filename="events_export_{timestamp}.csv"'
+        "Content-Disposition": f'attachment; filename="events_export_{timestamp}.xlsx"'
     }
-    csv_content = "\ufeff" + output.getvalue()
-    return Response(content=csv_content, media_type="text/csv; charset=utf-8", headers=headers)
+    return Response(
+        content=xlsx_content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @router.get("/admin/api/events/export")
