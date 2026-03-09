@@ -1,9 +1,12 @@
 import os
 from datetime import datetime, timedelta
+from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from sqlalchemy import or_, text
+from sqlalchemy import MetaData, Table, literal, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.schemas import DeclineUpdate, StatusUpdate
@@ -19,6 +22,176 @@ from app.services.offers import send_offer_flow
 from app.services.status_audit import log_status_change
 
 router = APIRouter()
+
+
+
+def _column_letter(index: int) -> str:
+    letters = ""
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        letters = chr(65 + rem) + letters
+    return letters
+
+
+def _xml_cell(value, cell_ref: str) -> str:
+    if value is None:
+        return f'<c r="{cell_ref}" t="inlineStr"><is><t></t></is></c>'
+    if isinstance(value, bool):
+        return f'<c r="{cell_ref}" t="b"><v>{1 if value else 0}</v></c>'
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f'<c r="{cell_ref}"><v>{value}</v></c>'
+    safe = escape(str(value))
+    return f'<c r="{cell_ref}" t="inlineStr"><is><t>{safe}</t></is></c>'
+
+
+def _build_xlsx_bytes(fields: list[str], rows: list[dict]) -> bytes:
+    sheet_rows = []
+    all_rows = [fields] + [[row.get(field) for field in fields] for row in rows]
+
+    for row_idx, values in enumerate(all_rows, start=1):
+        cells = []
+        for col_idx, value in enumerate(values, start=1):
+            cell_ref = f"{_column_letter(col_idx)}{row_idx}"
+            cells.append(_xml_cell(value, cell_ref))
+        sheet_rows.append(f'<row r="{row_idx}">' + "".join(cells) + "</row>")
+
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        '<sheetData>' + "".join(sheet_rows) + '</sheetData>'
+        '</worksheet>'
+    )
+
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        '<sheets><sheet name="Events" sheetId="1" r:id="rId1"/></sheets>'
+        '</workbook>'
+    )
+
+    workbook_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+        'Target="worksheets/sheet1.xml"/>'
+        '</Relationships>'
+    )
+
+    root_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="xl/workbook.xml"/>'
+        '</Relationships>'
+    )
+
+    content_types_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        '</Types>'
+    )
+
+    output = BytesIO()
+    with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types_xml)
+        archive.writestr("_rels/.rels", root_rels_xml)
+        archive.writestr("xl/workbook.xml", workbook_xml)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+
+    return output.getvalue()
+
+def _event_datetime_to_iso(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _serialize_event(e):
+    get = e.get if isinstance(e, dict) else lambda k: getattr(e, k, None)
+    wedding_date = get("wedding_date")
+    return {
+        "id": get("id"),
+        "token": get("token"),
+        "first_name": get("first_name"),
+        "last_name": get("last_name"),
+        "wedding_date": str(wedding_date) if wedding_date else None,
+        "venue": get("venue"),
+        "guest_count": get("guest_count"),
+        "email": get("email"),
+        "phone": get("phone"),
+        "message": get("message"),
+        "status": get("status"),
+        "accepted": bool(get("accepted")),
+        "selected_package": get("selected_package"),
+        "created_at": _event_datetime_to_iso(get("created_at")),
+        "updated_at": _event_datetime_to_iso(get("updated_at")),
+        "last_email_sent_at": _event_datetime_to_iso(get("last_email_sent_at")),
+        "reminder_count": get("reminder_count") or 0,
+        "offer_sent_at": _event_datetime_to_iso(get("offer_sent_at")),
+        "reminder_3d_sent_at": _event_datetime_to_iso(get("reminder_3d_sent_at")),
+        "reminder_7d_sent_at": _event_datetime_to_iso(get("reminder_7d_sent_at")),
+        "event_2d_sent_at": _event_datetime_to_iso(get("event_2d_sent_at")),
+    }
+
+
+def _query_events_rows(
+    db: Session,
+    status: str | None = None,
+    q: str | None = None,
+    date_sort: str = "asc",
+    id_sort: str | None = None,
+    limit: int = 500,
+):
+    metadata = MetaData()
+    events = Table("events", metadata, autoload_with=db.bind)
+
+    selected_fields = [
+        "id", "token", "first_name", "last_name", "wedding_date", "venue", "guest_count",
+        "email", "phone", "message", "status", "accepted", "selected_package", "created_at",
+        "updated_at", "last_email_sent_at", "reminder_count", "offer_sent_at", "reminder_3d_sent_at",
+        "reminder_7d_sent_at", "event_2d_sent_at",
+    ]
+
+    def col_or_null(name: str):
+        return events.c[name].label(name) if name in events.c else literal(None).label(name)
+
+    stmt = select(*[col_or_null(name) for name in selected_fields]).select_from(events)
+
+    if status and "status" in events.c:
+        stmt = stmt.where(events.c.status == status)
+
+    if q and q.strip():
+        qq = f"%{q.strip()}%"
+        terms = []
+        for name in ("first_name", "last_name", "email"):
+            if name in events.c:
+                terms.append(events.c[name].ilike(qq))
+        if terms:
+            stmt = stmt.where(or_(*terms))
+
+    if id_sort == "asc" and "id" in events.c:
+        stmt = stmt.order_by(events.c.id.asc())
+    elif id_sort == "desc" and "id" in events.c:
+        stmt = stmt.order_by(events.c.id.desc())
+    elif date_sort == "desc" and "wedding_date" in events.c and "id" in events.c:
+        stmt = stmt.order_by(events.c.wedding_date.desc(), events.c.id.desc())
+    elif "wedding_date" in events.c and "id" in events.c:
+        stmt = stmt.order_by(events.c.wedding_date.asc(), events.c.id.desc())
+
+    rows = db.execute(stmt.limit(limit)).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
@@ -47,61 +220,60 @@ def admin_events(
 ):
     require_admin_request(request)
 
-    query = db.query(Event)
+    rows = _query_events_rows(db, status=status, q=q, date_sort=date_sort, id_sort=id_sort, limit=500)
+    return {"items": [_serialize_event(e) for e in rows]}
 
-    if status:
-        query = query.filter(Event.status == status)
 
-    if q and q.strip():
-        qq = f"%{q.strip()}%"
-        query = query.filter(
-            or_(
-                Event.first_name.ilike(qq),
-                Event.last_name.ilike(qq),
-                Event.email.ilike(qq),
-            )
-        )
+@router.get("/admin/api/events/export")
+def admin_events_export(
+    request: Request,
+    status: str | None = None,
+    q: str | None = None,
+    date_sort: str = "asc",
+    id_sort: str | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    require_admin_request(request)
 
-    if id_sort == "asc":
-        query = query.order_by(Event.id.asc())
-    elif id_sort == "desc":
-        query = query.order_by(Event.id.desc())
-    elif date_sort == "desc":
-        query = query.order_by(Event.wedding_date.desc(), Event.id.desc())
-    else:
-        query = query.order_by(Event.wedding_date.asc(), Event.id.desc())
+    rows = _query_events_rows(db, status=status, q=q, date_sort=date_sort, id_sort=id_sort, limit=500)
 
-    rows = query.limit(500).all()
+    fields = [
+        "id",
+        "status",
+        "first_name",
+        "last_name",
+        "wedding_date",
+        "venue",
+        "guest_count",
+        "email",
+        "phone",
+        "selected_package",
+        "message",
+        "accepted",
+        "created_at",
+        "updated_at",
+        "last_email_sent_at",
+        "reminder_count",
+        "offer_sent_at",
+        "reminder_3d_sent_at",
+        "reminder_7d_sent_at",
+        "event_2d_sent_at",
+        "token",
+    ]
 
-    items = []
-    for e in rows:
-        items.append(
-            {
-                "id": e.id,
-                "token": e.token,
-                "first_name": e.first_name,
-                "last_name": e.last_name,
-                "wedding_date": str(e.wedding_date),
-                "venue": e.venue,
-                "guest_count": e.guest_count,
-                "email": e.email,
-                "phone": e.phone,
-                "message": e.message,
-                "status": e.status,
-                "accepted": bool(e.accepted),
-                "selected_package": e.selected_package,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
-                "updated_at": e.updated_at.isoformat() if e.updated_at else None,
-                "last_email_sent_at": e.last_email_sent_at.isoformat() if e.last_email_sent_at else None,
-                "reminder_count": e.reminder_count or 0,
-                "offer_sent_at": e.offer_sent_at.isoformat() if e.offer_sent_at else None,
-                "reminder_3d_sent_at": e.reminder_3d_sent_at.isoformat() if e.reminder_3d_sent_at else None,
-                "reminder_7d_sent_at": e.reminder_7d_sent_at.isoformat() if e.reminder_7d_sent_at else None,
-                "event_2d_sent_at": e.event_2d_sent_at.isoformat() if e.event_2d_sent_at else None,
-            }
-        )
+    serialized_rows = [_serialize_event(e) for e in rows]
+    xlsx_content = _build_xlsx_bytes(fields, serialized_rows)
 
-    return {"items": items}
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    headers = {
+        "Content-Disposition": f'attachment; filename="events_export_{timestamp}.xlsx"'
+    }
+    return Response(
+        content=xlsx_content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @router.get("/admin/api/events/{event_id}/email-logs")
